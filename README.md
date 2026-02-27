@@ -198,4 +198,12 @@ This means:
 Important:
 
 - this is source-available software, not OSI-approved open source
-- if you need commercial licensing, publish separate terms outside this repository
+- commercial rights are not granted by this repository alone
+
+## Commercial licensing
+
+If you want to use CoPaRe in a commercial product, service, internal commercial workflow, or other revenue-linked context:
+
+- you need a separate written commercial license from the copyright holders before use or distribution
+- this repository does not grant any commercial right by default
+- forks and derivatives remain bound by the noncommercial restriction unless they obtain separate permission
