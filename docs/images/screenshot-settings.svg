@@ -1,0 +1,48 @@
+<svg width="1280" height="860" viewBox="0 0 1280 860" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sbg" x1="0" y1="0" x2="1280" y2="860" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F3F8FB"/>
+      <stop offset="1" stop-color="#E9F1F7"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="860" fill="url(#sbg)"/>
+  <rect x="140" y="70" width="1000" height="720" rx="18" fill="#FFFFFF" stroke="#D0DEE8"/>
+  <rect x="140" y="70" width="1000" height="52" rx="18" fill="#F7FBFF"/>
+  <circle cx="170" cy="96" r="7" fill="#FF5F56"/>
+  <circle cx="192" cy="96" r="7" fill="#FFBD2E"/>
+  <circle cx="214" cy="96" r="7" fill="#27C93F"/>
+  <text x="640" y="102" text-anchor="middle" fill="#2C4251" font-family="SF Pro Text, Helvetica, Arial" font-size="15">CoPaRe - Settings</text>
+
+  <text x="186" y="170" fill="#1F3340" font-family="SF Pro Display, Helvetica, Arial" font-size="24" font-weight="700">Security</text>
+  <rect x="186" y="186" width="908" height="58" rx="10" fill="#F7FBFF" stroke="#D6E4EE"/>
+  <text x="210" y="220" fill="#2F4656" font-family="SF Pro Text, Helvetica, Arial" font-size="16">Filter potentially sensitive text</text>
+  <rect x="1006" y="202" width="68" height="26" rx="13" fill="#2E7FA2"/>
+  <circle cx="1058" cy="215" r="10" fill="white"/>
+
+  <rect x="186" y="252" width="908" height="58" rx="10" fill="#F7FBFF" stroke="#D6E4EE"/>
+  <text x="210" y="286" fill="#2F4656" font-family="SF Pro Text, Helvetica, Arial" font-size="16">Persist encrypted history on disk</text>
+  <rect x="1006" y="268" width="68" height="26" rx="13" fill="#2E7FA2"/>
+  <circle cx="1058" cy="281" r="10" fill="white"/>
+
+  <text x="186" y="370" fill="#1F3340" font-family="SF Pro Display, Helvetica, Arial" font-size="24" font-weight="700">Capture</text>
+  <rect x="186" y="386" width="908" height="58" rx="10" fill="#F7FBFF" stroke="#D6E4EE"/>
+  <text x="210" y="420" fill="#2F4656" font-family="SF Pro Text, Helvetica, Arial" font-size="16">Capture images</text>
+  <rect x="1006" y="402" width="68" height="26" rx="13" fill="#2E7FA2"/>
+  <circle cx="1058" cy="415" r="10" fill="white"/>
+
+  <rect x="186" y="452" width="908" height="58" rx="10" fill="#F7FBFF" stroke="#D6E4EE"/>
+  <text x="210" y="486" fill="#2F4656" font-family="SF Pro Text, Helvetica, Arial" font-size="16">Capture copied files/folders</text>
+  <rect x="1006" y="468" width="68" height="26" rx="13" fill="#2E7FA2"/>
+  <circle cx="1058" cy="481" r="10" fill="white"/>
+
+  <rect x="186" y="518" width="908" height="86" rx="10" fill="#F7FBFF" stroke="#D6E4EE"/>
+  <text x="210" y="548" fill="#2F4656" font-family="SF Pro Text, Helvetica, Arial" font-size="16">Polling interval</text>
+  <text x="1040" y="548" text-anchor="end" fill="#4A677A" font-family="SF Pro Text, Helvetica, Arial" font-size="15">0.65s</text>
+  <rect x="210" y="564" width="850" height="8" rx="4" fill="#D7E6EF"/>
+  <rect x="210" y="564" width="330" height="8" rx="4" fill="#2E7FA2"/>
+
+  <text x="186" y="672" fill="#1F3340" font-family="SF Pro Display, Helvetica, Arial" font-size="24" font-weight="700">Danger Zone</text>
+  <rect x="186" y="690" width="260" height="48" rx="10" fill="#6C242A"/>
+  <text x="316" y="720" text-anchor="middle" fill="#FFE8EA" font-family="SF Pro Text, Helvetica, Arial" font-size="15">Delete entire history</text>
+</svg>
