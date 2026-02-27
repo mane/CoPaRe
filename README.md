@@ -27,7 +27,7 @@ This repository includes a ready app bundle:
 
 Notes:
 
-- This bundle is built with ad-hoc signature (`Sign to Run Locally`), so it does not contain personal Developer ID metadata.
+- This bundle is ad-hoc signed (`Sign to Run Locally`) to avoid embedding personal Developer ID metadata in source distribution.
 - On first launch, macOS may require `Right click > Open`.
 
 ### Option 2: Build from source
@@ -59,22 +59,29 @@ xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS
 - Private session mode (memory-only)
 - Launch at login
 
-## Security model
+## Security assurance
 
-CoPaRe is designed with defense-in-depth.
+CoPaRe includes practical hardening controls:
 
-Implemented:
-
+- App Sandbox enabled
+- Hardened Runtime enabled
+- Release builds use `com.apple.security.get-task-allow = false`
 - AES-GCM encryption for local persisted history
-- Encryption key stored in macOS Keychain
-- Sensitive content filter (common secret/token/key patterns)
-- Payload size limits to reduce accidental large captures
-- No telemetry or tracking
+- Encryption key stored in macOS Keychain (`ThisDeviceOnly`)
+- No telemetry/tracking code paths
 
-Limits:
+Verification command:
 
-- No clipboard manager can detect every secret with 100% accuracy
-- If the logged-in session is compromised, clipboard data can still be exposed
+```bash
+./scripts/security-check.sh release/CoPaRe.app
+```
+
+Additional details and disclosure policy: see [SECURITY.md](SECURITY.md).
+
+## Security model limits
+
+- No clipboard manager can detect every secret with 100% accuracy.
+- If the logged-in macOS session is compromised, clipboard data can still be exposed.
 
 ## Configuration reference
 
@@ -94,7 +101,7 @@ For notarized distribution, use:
 
 - `scripts/release.sh`
 
-It performs: release build, app signing, DMG creation/signing, notarization, stapling, validation, and SHA256 generation.
+It performs: release build, app signing, security entitlement validation, DMG creation/signing, notarization, stapling, validation, and SHA256 generation.
 
 Example:
 
@@ -111,7 +118,7 @@ Example:
 - `CoPaReUITests/` UI tests
 - `docs/images/` README screenshots
 - `release/` distributable app bundle for quick install
-- `scripts/` release automation
+- `scripts/` release automation and security checks
 
 ## Contributing
 
