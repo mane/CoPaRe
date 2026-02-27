@@ -5,19 +5,19 @@ It keeps a local clipboard history for text, URLs, images, and files with encryp
 
 ## Screenshots
 
-> Note: screenshots below are generated UI previews from this repository (headless environment), included to document the expected interface.
+> Note: screenshots below are real captures from the running macOS app.
 
 ### Main window
 
-![CoPaRe main window](docs/images/screenshot-main.svg)
+![CoPaRe main window](docs/images/screenshot-main.png)
 
 ### Settings
 
-![CoPaRe settings](docs/images/screenshot-settings.svg)
+![CoPaRe settings](docs/images/screenshot-settings.png)
 
 ### Menu bar quick panel
 
-![CoPaRe menu bar panel](docs/images/screenshot-menubar.svg)
+![CoPaRe menu bar panel](docs/images/screenshot-menubar.png)
 
 ## Core features
 
