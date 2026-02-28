@@ -164,8 +164,8 @@ Typical outputs:
 - `docs/images/` screenshots used in this README
 - `release/` prebuilt public archive included in the repository
 - `scripts/` release automation and security verification helpers
-- `LICENSE` PolyForm Noncommercial 1.0.0 license text
-- `NOTICE` required attribution notices that redistributions must keep
+- `LICENSE` Apache 2.0 license text with the Commons Clause restriction
+- `NOTICE` attribution and license notice that redistributions must keep
 
 ## Contributing
 
@@ -187,23 +187,23 @@ Include:
 
 ## License
 
-CoPaRe is distributed under [PolyForm Noncommercial 1.0.0](LICENSE).
+CoPaRe is distributed under Apache License 2.0 with the Commons Clause License Condition v1.0. See [LICENSE](LICENSE).
 
 This means:
 
-- source code reuse, modification, and redistribution are allowed
-- commercial use is not allowed without separate permission
-- redistributions must preserve the `Required Notice:` lines shipped in [NOTICE](NOTICE)
+- individuals and companies may use, modify, and integrate the software, including for internal business use
+- redistributions must preserve the license and notice files
+- you may not sell CoPaRe itself, or a product/service whose value derives substantially from CoPaRe, under the default repository terms
 
 Important:
 
 - this is source-available software, not OSI-approved open source
-- commercial rights are not granted by this repository alone
+- if you want an absolute ban on every monetized redistribution scenario, that requires a custom commercial license, not just a stock license text
 
 ## Commercial licensing
 
-If you want to use CoPaRe in a commercial product, service, internal commercial workflow, or other revenue-linked context:
+If you want to resell CoPaRe, offer it as a paid standalone distribution, or build a paid service whose value derives substantially from CoPaRe:
 
-- you need a separate written commercial license from the copyright holders before use or distribution
-- this repository does not grant any commercial right by default
-- forks and derivatives remain bound by the noncommercial restriction unless they obtain separate permission
+- you need a separate written commercial license from the copyright holders before distribution
+- the default repository terms do not grant that resale right
+- internal company use remains allowed under the included license terms
