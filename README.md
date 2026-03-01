@@ -70,6 +70,7 @@ xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS
 
 - Clipboard history for text, URLs, images, files, and folders
 - Manual snippets with optional encrypted local persistence
+- On-demand loading of the saved-snippets vault (`Load Saved Snippets`)
 - Duplicate collapse with capture counters for repeated copies
 - Fast search across visible previews and minimal local file labels
 - Filters for `All`, `Pinned`, `Text`, `Images`, and `Files`
@@ -77,7 +78,7 @@ xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS
 - Per-app capture exclusions using bundle identifiers
 - Entry time-to-live controls for captured, unpinned history items
 - Optional one-time copy for unpinned history items
-- Optional local lock/unlock gate before history is shown
+- Optional local lock/unlock gate before history is shown, with `userPresence` protection for the saved-snippets vault when enabled
 - One-click re-copy for every entry
 - Menu bar quick panel for fast access
 - Menu bar actions for copy, pin/unpin, reveal in Finder, and secure delete
@@ -161,10 +162,10 @@ Typical outputs:
 
 | Option | Description | Default |
 |---|---|---|
-| Filter potentially sensitive text | Blocks likely secrets and sensitive file paths from being stored | Enabled |
+| Filter potentially sensitive content | Blocks likely secrets and sensitive file paths from being stored | Enabled |
 | Persist saved snippets on disk | Persists only manually created snippets in an encrypted vault; captured clipboard history always stays session-only | Enabled |
 | One-time copy for unpinned history items | Removes an unpinned captured item after a successful re-copy | Disabled |
-| Require unlock to view history | Locks the visible history behind local authentication when enabled | Disabled |
+| Require unlock to view history | Locks the visible history behind local authentication and binds saved-snippets vault access to `userPresence` when enabled | Disabled |
 | Launch at login | Starts CoPaRe automatically at login (macOS 13+) | Disabled |
 | Capture images | Includes copied images in history | Enabled |
 | Capture copied files/folders | Includes file URLs in history | Enabled |
@@ -177,6 +178,7 @@ Typical outputs:
 
 - Snippets are manually created text entries and are not subject to automatic TTL expiration.
 - Saved snippets are not auto-loaded at app launch; they are loaded only when you explicitly choose `Load Saved Snippets`.
+- Re-copied text and URLs are written back to the pasteboard with concealed/auto-generated markers to reduce capture by other well-behaved clipboard tools.
 - Pinned items and snippets are preserved when you use the standard "Clear unpinned history" action.
 - Captured clipboard history is always memory-only and is not restored after relaunch.
 - Secure delete of individual entries removes them from the current session immediately.
