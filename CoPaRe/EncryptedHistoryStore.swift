@@ -65,17 +65,53 @@ actor EncryptedHistoryStore {
 
             let data = try JSONEncoder().encode(envelope)
             try data.write(to: fileURL, options: .atomic)
+            try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
         } catch {
             logger.error("Failed to save encrypted history: \(error.localizedDescription, privacy: .public)")
         }
     }
 
-    func clearHistoryFile() {
+    func replaceHistory(_ items: [ClipboardHistoryItem], rotateKey: Bool = false) {
+        if rotateKey {
+            clearHistoryFile(resetKey: true)
+        }
+
+        guard !items.isEmpty else {
+            return
+        }
+
+        saveHistory(items)
+    }
+
+    func clearHistoryFile(resetKey: Bool = false) {
         do {
             guard fileManager.fileExists(atPath: fileURL.path) else {
+                if resetKey {
+                    try keyProvider.deleteKey()
+                }
                 return
             }
+
+            let fileSize = (try? fileManager.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber)?.intValue ?? 0
+            if fileSize > 0 {
+                let zeroes = Data(repeating: 0, count: fileSize)
+                if let handle = try? FileHandle(forWritingTo: fileURL) {
+                    try handle.truncate(atOffset: 0)
+                    try handle.write(contentsOf: zeroes)
+                    if #available(macOS 10.15.4, *) {
+                        try handle.synchronize()
+                    } else {
+                        handle.synchronizeFile()
+                    }
+                    try handle.close()
+                }
+            }
+
             try fileManager.removeItem(at: fileURL)
+
+            if resetKey {
+                try keyProvider.deleteKey()
+            }
         } catch {
             logger.error("Failed to clear encrypted history file: \(error.localizedDescription, privacy: .public)")
         }

@@ -10,22 +10,56 @@ struct MenuBarContentView: View {
             openWindow(id: "main")
         }
 
+        if manager.settings.lockProtectionEnabled {
+            if manager.isLocked {
+                Button("Unlock CoPaRe") {
+                    Task {
+                        await manager.unlock()
+                    }
+                }
+            } else {
+                Button("Lock CoPaRe") {
+                    manager.lock()
+                }
+            }
+        }
+
         Button(manager.isMonitoringEnabled ? "Pause monitoring" : "Resume monitoring") {
             manager.toggleMonitoring()
         }
+        .disabled(manager.isLocked)
 
         Button("Clear unpinned history", role: .destructive) {
             manager.clearHistory(keepPinned: true)
         }
+        .disabled(manager.isLocked)
 
         Divider()
 
         if manager.menuItems.isEmpty {
-            Text("No clipboard history yet")
+            Text(manager.isLocked ? "CoPaRe is locked" : "No clipboard history yet")
         } else {
             ForEach(manager.menuItems) { item in
-                Button {
-                    manager.copyToClipboard(item)
+                Menu {
+                    Button("Copy") {
+                        manager.copyToClipboard(item)
+                    }
+
+                    Button(item.isPinned ? "Unpin" : "Pin") {
+                        manager.togglePin(itemID: item.id)
+                    }
+
+                    if item.type == .file {
+                        Button("Reveal in Finder") {
+                            manager.revealFiles(of: item)
+                        }
+                    }
+
+                    Divider()
+
+                    Button("Secure delete", role: .destructive) {
+                        manager.remove(itemID: item.id)
+                    }
                 } label: {
                     menuItemLabel(for: item)
                 }

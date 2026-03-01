@@ -13,8 +13,12 @@ Implemented controls:
 - App Sandbox enabled
 - Hardened Runtime enabled for release builds
 - Release entitlement `com.apple.security.get-task-allow = false`
-- AES-GCM encryption for clipboard history at rest
-- Encryption key stored in macOS Keychain (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)
+- Captured clipboard history is session-only and is never written to disk
+- Runtime payloads are wrapped with an in-memory session key and revealed on demand
+- Optional snippet persistence stores only user-authored snippets in an encrypted vault at rest in the app support container with restrictive local file permissions
+- No automatic Keychain access in the normal app launch path; Keychain is touched only when saving or explicitly loading the encrypted snippets vault
+- When app lock is enabled, the saved-snippets vault key is stored with `userPresence`, so macOS requires system authentication before releasing that key
+- Re-copied text is marked with concealed/auto-generated pasteboard types to discourage capture by other well-behaved clipboard tools
 - No telemetry/tracking code paths in app source
 
 ## What CoPaRe does not claim

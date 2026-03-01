@@ -1,7 +1,7 @@
 # CoPaRe
 
 CoPaRe is a security-focused clipboard manager for macOS.
-It keeps clipboard history local, supports encrypted persistence at rest, and avoids bundling personal signing metadata in the public source repository.
+It keeps captured clipboard history session-only, stores only user-authored snippets across restarts when enabled, and avoids bundling personal signing metadata in the public source repository.
 
 ## Screenshots
 
@@ -69,12 +69,21 @@ xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS
 ## Core features
 
 - Clipboard history for text, URLs, images, files, and folders
+- Manual snippets with optional encrypted local persistence
+- Duplicate collapse with capture counters for repeated copies
 - Fast search across visible previews and minimal local file labels
 - Filters for `All`, `Pinned`, `Text`, `Images`, and `Files`
 - Pin/unpin important entries
+- Per-app capture exclusions using bundle identifiers
+- Entry time-to-live controls for captured, unpinned history items
+- Optional one-time copy for unpinned history items
+- Optional local lock/unlock gate before history is shown
 - One-click re-copy for every entry
 - Menu bar quick panel for fast access
-- Private session mode when encrypted persistence is disabled
+- Menu bar actions for copy, pin/unpin, reveal in Finder, and secure delete
+- Session-only clipboard capture with no automatic history-at-rest
+- Secure wipe of in-memory history and saved snippets
+- Local security event counters for blocked/skipped activity
 - Launch at login support on macOS 13+
 
 ## Security posture
@@ -84,13 +93,17 @@ CoPaRe uses practical hardening appropriate for a local clipboard manager:
 - App Sandbox enabled
 - Release entitlement `com.apple.security.get-task-allow = false`
 - Hardened runtime enabled for release distribution builds produced by `scripts/release.sh`
-- AES-GCM encryption for persisted clipboard history
-- Encryption key stored in macOS Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`
-- Full history payload stored encrypted and decrypted on demand for re-copy or focused detail view
+- Captured clipboard history is never written to disk and is cleared when CoPaRe quits
+- Runtime payloads are wrapped with an in-memory session key and revealed on demand for re-copy or focused detail view
+- Optional snippet persistence stores only user-authored snippets in an encrypted vault stored in the app support container with restrictive local file permissions
 - Search avoids indexing full text bodies in RAM; only visible previews and minimal file labels remain searchable
 - Protected pasteboard-type detection for concealed/password-manager clipboard content
+- Re-copied text is marked with concealed/auto-generated pasteboard types to discourage capture by other well-behaved clipboard tools
 - Sensitive file-path filtering for likely secret material (`.key`, `.pem`, `.ovpn`, `.ssh`, `.gnupg`)
+- Frontmost app exclusion rules prevent capture from configured bundle identifiers
 - Focused detail payload cleared when the app resigns active and after a short timeout
+- No automatic Keychain access in the normal application launch path; Keychain is touched only when saving or explicitly loading the encrypted snippets vault
+- When app lock is enabled, the saved-snippets vault key is stored with `userPresence`, so macOS requires system authentication before releasing that key
 - No analytics or outbound telemetry code in the app source
 
 ## Security model limits
@@ -149,12 +162,26 @@ Typical outputs:
 | Option | Description | Default |
 |---|---|---|
 | Filter potentially sensitive text | Blocks likely secrets and sensitive file paths from being stored | Enabled |
-| Persist encrypted history on disk | Enables encrypted local persistence | Enabled |
+| Persist saved snippets on disk | Persists only manually created snippets in an encrypted vault; captured clipboard history always stays session-only | Enabled |
+| One-time copy for unpinned history items | Removes an unpinned captured item after a successful re-copy | Disabled |
+| Require unlock to view history | Locks the visible history behind local authentication when enabled | Disabled |
 | Launch at login | Starts CoPaRe automatically at login (macOS 13+) | Disabled |
 | Capture images | Includes copied images in history | Enabled |
 | Capture copied files/folders | Includes file URLs in history | Enabled |
 | Polling interval | Clipboard polling cadence | 0.65s |
+| Entry time-to-live | Auto-expires captured, unpinned items after a selected retention window | Never |
 | Unpinned history limit | Maximum number of non-pinned entries kept | 250 |
+| Per-App Exclusions | Newline-separated bundle identifiers that CoPaRe ignores during capture | Built-in password manager defaults |
+
+## Additional behavior
+
+- Snippets are manually created text entries and are not subject to automatic TTL expiration.
+- Saved snippets are not auto-loaded at app launch; they are loaded only when you explicitly choose `Load Saved Snippets`.
+- Pinned items and snippets are preserved when you use the standard "Clear unpinned history" action.
+- Captured clipboard history is always memory-only and is not restored after relaunch.
+- Secure delete of individual entries removes them from the current session immediately.
+- "Secure wipe entire history" removes all items, best-effort overwrites and deletes the encrypted snippets vault, deletes the snippet encryption key, and clears any legacy encrypted history file from older versions.
+- Security event counters are local-only and track blocked sensitive captures, excluded-app skips, expired entries, secure wipes, and unlock events.
 
 ## Repository layout
 

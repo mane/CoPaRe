@@ -3,6 +3,51 @@ import OSLog
 import ServiceManagement
 import Combine
 
+enum ClipboardItemTTL: String, CaseIterable, Identifiable {
+    case never
+    case thirtySeconds
+    case fiveMinutes
+    case fifteenMinutes
+    case oneHour
+    case oneDay
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .never:
+            return "Never"
+        case .thirtySeconds:
+            return "30 seconds"
+        case .fiveMinutes:
+            return "5 minutes"
+        case .fifteenMinutes:
+            return "15 minutes"
+        case .oneHour:
+            return "1 hour"
+        case .oneDay:
+            return "1 day"
+        }
+    }
+
+    var interval: TimeInterval? {
+        switch self {
+        case .never:
+            return nil
+        case .thirtySeconds:
+            return 30
+        case .fiveMinutes:
+            return 5 * 60
+        case .fifteenMinutes:
+            return 15 * 60
+        case .oneHour:
+            return 60 * 60
+        case .oneDay:
+            return 24 * 60 * 60
+        }
+    }
+}
+
 @MainActor
 final class SettingsStore: ObservableObject {
     private enum Keys {
@@ -13,10 +58,23 @@ final class SettingsStore: ObservableObject {
         static let captureFiles = "captureFiles"
         static let filterSensitiveContent = "filterSensitiveContent"
         static let launchAtLogin = "launchAtLogin"
+        static let excludedAppsRawText = "excludedAppsRawText"
+        static let itemTTL = "itemTTL"
+        static let oneTimeCopyEnabled = "oneTimeCopyEnabled"
+        static let lockProtectionEnabled = "lockProtectionEnabled"
     }
 
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: "io.copare.app", category: "settings")
+
+    private static let defaultExcludedApps = [
+        "com.1password.1password",
+        "com.agilebits.onepassword7",
+        "com.apple.keychainaccess",
+        "com.bitwarden.desktop",
+        "com.bitwarden.desktop.helper",
+        "org.keepassxc.keepassxc",
+    ].joined(separator: "\n")
 
     var onChange: (() -> Void)?
 
@@ -66,6 +124,39 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    @Published var excludedAppsRawText: String {
+        didSet {
+            let normalized = Self.normalizeExcludedAppsText(excludedAppsRawText)
+            if normalized != excludedAppsRawText {
+                excludedAppsRawText = normalized
+                return
+            }
+            persist(normalized, key: Keys.excludedAppsRawText, oldValue: oldValue)
+        }
+    }
+
+    @Published var itemTTL: ClipboardItemTTL {
+        didSet {
+            guard itemTTL != oldValue else {
+                return
+            }
+            defaults.set(itemTTL.rawValue, forKey: Keys.itemTTL)
+            onChange?()
+        }
+    }
+
+    @Published var oneTimeCopyEnabled: Bool {
+        didSet {
+            persist(oneTimeCopyEnabled, key: Keys.oneTimeCopyEnabled, oldValue: oldValue)
+        }
+    }
+
+    @Published var lockProtectionEnabled: Bool {
+        didSet {
+            persist(lockProtectionEnabled, key: Keys.lockProtectionEnabled, oldValue: oldValue)
+        }
+    }
+
     @Published var launchAtLogin: Bool {
         didSet {
             persist(launchAtLogin, key: Keys.launchAtLogin, oldValue: oldValue)
@@ -82,6 +173,12 @@ final class SettingsStore: ObservableObject {
         captureImages = defaults.object(forKey: Keys.captureImages) as? Bool ?? true
         captureFiles = defaults.object(forKey: Keys.captureFiles) as? Bool ?? true
         filterSensitiveContent = defaults.object(forKey: Keys.filterSensitiveContent) as? Bool ?? true
+        excludedAppsRawText = Self.normalizeExcludedAppsText(
+            defaults.string(forKey: Keys.excludedAppsRawText) ?? Self.defaultExcludedApps
+        )
+        itemTTL = ClipboardItemTTL(rawValue: defaults.string(forKey: Keys.itemTTL) ?? "") ?? .never
+        oneTimeCopyEnabled = defaults.object(forKey: Keys.oneTimeCopyEnabled) as? Bool ?? false
+        lockProtectionEnabled = defaults.object(forKey: Keys.lockProtectionEnabled) as? Bool ?? false
 
         if #available(macOS 13.0, *) {
             let status = SMAppService.mainApp.status
@@ -118,6 +215,26 @@ final class SettingsStore: ObservableObject {
         } catch {
             logger.error("Unable to update launch at login: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    private static func normalizeExcludedAppsText(_ text: String) -> String {
+        let normalizedLines = text
+            .components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+
+        var seen = Set<String>()
+        let unique = normalizedLines.filter { seen.insert($0).inserted }
+        return unique.joined(separator: "\n")
+    }
+
+    var excludedBundleIdentifiers: Set<String> {
+        Set(
+            excludedAppsRawText
+                .components(separatedBy: .newlines)
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+                .filter { !$0.isEmpty }
+        )
     }
 }
 

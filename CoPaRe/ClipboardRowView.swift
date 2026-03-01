@@ -41,13 +41,18 @@ struct ClipboardRowView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 HStack(spacing: 8) {
-                    Text(item.type.label)
-                    Text(item.createdAt, style: .time)
+                    Text(item.isSnippet ? item.origin.label : item.type.label)
+                    Text(item.updatedAt, style: .time)
                     Text(ByteCountFormatter.string(fromByteCount: Int64(item.byteSize), countStyle: .file))
 
                     if item.isPinned {
                         Image(systemName: "pin.fill")
                             .foregroundStyle(.orange)
+                    }
+
+                    if item.captureCount > 1 {
+                        Label("\(item.captureCount)x", systemImage: "square.stack.3d.down.forward")
+                            .labelStyle(.titleAndIcon)
                     }
                 }
                 .font(.caption)
@@ -79,7 +84,7 @@ struct ClipboardRowView: View {
             Button("Copy") { onCopy() }
             Button(item.isPinned ? "Unpin" : "Pin") { onTogglePin() }
             Divider()
-            Button("Delete", role: .destructive) { onDelete() }
+            Button("Secure delete", role: .destructive) { onDelete() }
         }
     }
 
