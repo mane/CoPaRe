@@ -23,7 +23,7 @@ It keeps captured clipboard history session-only, stores only user-authored snip
 
 This repository includes a prebuilt archive in `release/`:
 
-- `release/CoPaRe-v1.0.0.zip`
+- `release/CoPaRe-v1.1.0.zip`
 
 What it contains:
 
@@ -36,7 +36,7 @@ Install:
 
 ```bash
 mkdir -p /tmp/CoPaRe-install
-ditto -x -k release/CoPaRe-v1.0.0.zip /tmp/CoPaRe-install
+ditto -x -k release/CoPaRe-v1.1.0.zip /tmp/CoPaRe-install
 rm -rf /Applications/CoPaRe.app
 cp -R /tmp/CoPaRe-install/CoPaRe.app /Applications/CoPaRe.app
 open /Applications/CoPaRe.app
@@ -155,8 +155,8 @@ Example:
 
 Typical outputs:
 
-- `dist/CoPaRe-v1.0.0.dmg`
-- `dist/CoPaRe-v1.0.0.dmg.sha256`
+- `dist/CoPaRe-v1.1.0.dmg`
+- `dist/CoPaRe-v1.1.0.dmg.sha256`
 
 ## Configuration reference
 
@@ -193,8 +193,8 @@ Typical outputs:
 - `docs/images/` screenshots used in this README
 - `release/` prebuilt public archive included in the repository
 - `scripts/` release automation and security verification helpers
-- `LICENSE` Apache 2.0 license text with the Commons Clause restriction
-- `NOTICE` attribution and license notice that redistributions must keep
+- `LICENSE` CoPaRe Community License 1.0
+- `NOTICE` required attribution and origin notice that redistributions must keep
 
 ## Contributing
 
@@ -216,23 +216,25 @@ Include:
 
 ## License
 
-CoPaRe is distributed under Apache License 2.0 with the Commons Clause License Condition v1.0. See [LICENSE](LICENSE).
+CoPaRe is distributed under the CoPaRe Community License 1.0. See [LICENSE](LICENSE).
 
 This means:
 
-- individuals and companies may use, modify, and integrate the software, including for internal business use
-- redistributions must preserve the license and notice files
-- you may not sell CoPaRe itself, or a product/service whose value derives substantially from CoPaRe, under the default repository terms
+- individuals and companies may use, modify, and run the software, including for internal business use
+- redistributions in source or binary form are allowed only when they are free of charge
+- redistributions must preserve the `LICENSE` and `NOTICE` files
+- redistributions must clearly preserve attribution to the CoPaRe project and state whether the software was modified
+- no one may generate profit, fees, margins, or other commercial benefit from redistributing CoPaRe or derivative works under the default repository terms
 
 Important:
 
 - this is source-available software, not OSI-approved open source
-- if you want an absolute ban on every monetized redistribution scenario, that requires a custom commercial license, not just a stock license text
+- commercial redistribution rights are reserved unless the copyright holders grant separate written permission
 
-## Commercial licensing
+## Commercial redistribution
 
-If you want to resell CoPaRe, offer it as a paid standalone distribution, or build a paid service whose value derives substantially from CoPaRe:
+If you want to sell CoPaRe, include it in a paid bundle, ship it as part of a paid service, or otherwise monetize redistribution of CoPaRe:
 
-- you need a separate written commercial license from the copyright holders before distribution
-- the default repository terms do not grant that resale right
-- internal company use remains allowed under the included license terms
+- the default repository terms do not allow that
+- you need separate written permission from the copyright holders before distribution
+- internal company use that does not redistribute the software remains allowed under the included license terms
