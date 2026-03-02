@@ -59,7 +59,6 @@ final class ClipboardManager: ObservableObject {
     let settings: SettingsStore
 
     private let snippetStore: SnippetStore
-    private let legacyStorage: EncryptedHistoryStore
     private let captureService: ClipboardCaptureService
 
     private var persistTask: Task<Void, Never>?
@@ -67,12 +66,10 @@ final class ClipboardManager: ObservableObject {
 
     init(
         settings: SettingsStore,
-        snippetStore: SnippetStore = SnippetStore(),
-        legacyStorage: EncryptedHistoryStore = EncryptedHistoryStore()
+        snippetStore: SnippetStore = SnippetStore()
     ) {
         self.settings = settings
         self.snippetStore = snippetStore
-        self.legacyStorage = legacyStorage
         captureService = ClipboardCaptureService(settings: settings)
         isLocked = settings.lockProtectionEnabled
 
@@ -275,7 +272,6 @@ final class ClipboardManager: ObservableObject {
 
         Task {
             await snippetStore.clearSnippetsFile()
-            await legacyStorage.clearHistoryFile()
         }
         hasSavedSnippetsAvailable = false
         savedSnippetsLoaded = true
@@ -437,8 +433,6 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func loadInitialState() async {
-        await legacyStorage.clearHistoryFile()
-
         if settings.persistHistory {
             hasSavedSnippetsAvailable = await snippetStore.hasSavedSnippets()
             savedSnippetsLoaded = !hasSavedSnippetsAvailable

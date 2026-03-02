@@ -182,7 +182,7 @@ Typical outputs:
 - Pinned items and snippets are preserved when you use the standard "Clear unpinned history" action.
 - Captured clipboard history is always memory-only and is not restored after relaunch.
 - Secure delete of individual entries removes them from the current session immediately.
-- "Secure wipe entire history" removes all items, best-effort overwrites and deletes the encrypted snippets vault, deletes the snippet encryption key, and clears any legacy encrypted history file from older versions.
+- "Secure wipe entire history" removes all items, best-effort overwrites and deletes the encrypted snippets vault, and deletes the snippet encryption key.
 - Security event counters are local-only and track blocked sensitive captures, excluded-app skips, expired entries, secure wipes, and unlock events.
 
 ## Repository layout
