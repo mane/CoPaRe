@@ -22,7 +22,7 @@ SKIP_NOTARIZE="${SKIP_NOTARIZE:-0}"
 SKIP_INSTALL="${SKIP_INSTALL:-0}"
 CLEAN_BUILD="${CLEAN_BUILD:-1}"
 SPARKLE_KEY_ACCOUNT="${SPARKLE_KEY_ACCOUNT:-io.copare.sparkle}"
-SPARKLE_DOWNLOAD_URL_PREFIX="${SPARKLE_DOWNLOAD_URL_PREFIX:-https://raw.githubusercontent.com/mane/CoPaRe/main/release/}"
+SPARKLE_DOWNLOAD_URL_PREFIX="${SPARKLE_DOWNLOAD_URL_PREFIX:-}"
 
 usage() {
   cat <<'USAGE'
@@ -127,6 +127,9 @@ resolve_version() {
 }
 
 RELEASE_VERSION="$(resolve_version)"
+if [[ -z "${SPARKLE_DOWNLOAD_URL_PREFIX}" ]]; then
+  SPARKLE_DOWNLOAD_URL_PREFIX="https://github.com/mane/CoPaRe/releases/latest/download/"
+fi
 DMG_NAME="${APP_NAME}-v${RELEASE_VERSION}.dmg"
 DMG_PATH="${DIST_DIR}/${DMG_NAME}"
 SHA_PATH="${DMG_PATH}.sha256"
@@ -180,6 +183,7 @@ if [[ ! -x "${GENERATE_APPCAST_BIN}" ]]; then
 fi
 
 echo "[4/11] Create Sparkle update archive ${ZIP_NAME}"
+rm -f "${RELEASE_DIR}/${APP_NAME}"-v*.zip "${RELEASE_DIR}/${APP_NAME}"*.delta
 rm -f "${ZIP_PATH}"
 ditto -c -k --sequesterRsrc --keepParent "${STAGED_APP_PATH}" "${ZIP_PATH}"
 

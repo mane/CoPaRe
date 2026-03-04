@@ -27,36 +27,7 @@ The recommended install path is the latest notarized GitHub release:
 
 Use the DMG included in the release assets for the smoothest first install experience.
 
-### Option 2: Use the bundled Sparkle archive from the repository
-
-This repository also includes the current Sparkle update archive in `release/`:
-
-- `release/CoPaRe-v1.2.1.zip`
-
-What it contains:
-
-- `CoPaRe.app`
-- the same signed update payload used by Sparkle
-- a bundle-ready archive for manual extraction or self-hosted update distribution
-- note: a macOS `.app` is a bundle directory, so GitHub release assets should be uploaded as `.zip` or `.dmg`, not as the raw bundle
-
-Install:
-
-```bash
-mkdir -p /tmp/CoPaRe-install
-ditto -x -k release/CoPaRe-v1.2.1.zip /tmp/CoPaRe-install
-rm -rf /Applications/CoPaRe.app
-cp -R /tmp/CoPaRe-install/CoPaRe.app /Applications/CoPaRe.app
-open /Applications/CoPaRe.app
-```
-
-Notes:
-
-- The repository ZIP is the Sparkle update payload, not a notarized installer container.
-- For manual installs from this ZIP, macOS may still require `Right click > Open` on first launch.
-- If you want a notarized distribution package, use the GitHub release DMG or generate one with `scripts/release.sh`.
-
-### Option 3: Build from source
+### Option 2: Build from source
 
 Requirements:
 
@@ -218,7 +189,8 @@ xcodebuild -resolvePackageDependencies \
 Notes:
 
 - `scripts/release.sh` uses `io.copare.sparkle` as the default Sparkle key account
-- override `SPARKLE_DOWNLOAD_URL_PREFIX` if you want the appcast to point to GitHub Releases instead of `raw.githubusercontent.com`
+- by default, Sparkle assets are generated for `https://github.com/mane/CoPaRe/releases/latest/download/`
+- override `SPARKLE_DOWNLOAD_URL_PREFIX` only if you want to self-host update assets somewhere else
 
 Typical outputs:
 
@@ -262,7 +234,7 @@ Typical outputs:
 - `CoPaReUITests/` UI tests
 - `CoPaRe-Info.plist` explicit app Info.plist containing Sparkle configuration
 - `docs/images/` screenshots used in this README
-- `release/` Sparkle update archives, optional delta archives, and the signed appcast feed committed for update distribution
+- `release/` locally generated Sparkle archives plus the signed `appcast.xml`; only the appcast is intended to stay versioned in git
 - `dist/` locally generated DMGs and checksums created by `scripts/release.sh` (not intended to stay versioned in git)
 - `scripts/` versioning, release automation, and security verification helpers
 - `LICENSE` CoPaRe Community License 1.0

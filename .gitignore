@@ -1,5 +1,6 @@
 # macOS
 .DS_Store
+release/.DS_Store
 
 # Xcode user data
 *.xcuserstate
@@ -10,6 +11,8 @@ xcuserdata/
 build/
 dist/
 DerivedData/
+release/*.zip
+release/*.delta
 
 # Xcode build output
 *.dSYM

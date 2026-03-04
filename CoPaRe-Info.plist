@@ -28,8 +28,8 @@
     <true/>
     <key>SUEnableInstallerLauncherService</key>
     <true/>
-    <key>SUFeedURL</key>
-    <string>https://raw.githubusercontent.com/mane/CoPaRe/main/release/appcast.xml</string>
+	<key>SUFeedURL</key>
+	<string>https://github.com/mane/CoPaRe/releases/latest/download/appcast.xml</string>
     <key>SUPublicEDKey</key>
     <string>DvReLzEhGBRleOmTzRFaCcnegSPulI9gBZ3BMepjDz0=</string>
     <key>SURequireSignedFeed</key>
