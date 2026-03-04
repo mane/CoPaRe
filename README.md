@@ -23,7 +23,7 @@ It keeps captured clipboard history session-only, stores only user-authored snip
 
 This repository includes a prebuilt archive in `release/`:
 
-- `release/CoPaRe-v1.1.0.zip`
+- `release/CoPaRe-v1.2.0.zip`
 
 What it contains:
 
@@ -36,7 +36,7 @@ Install:
 
 ```bash
 mkdir -p /tmp/CoPaRe-install
-ditto -x -k release/CoPaRe-v1.1.0.zip /tmp/CoPaRe-install
+ditto -x -k release/CoPaRe-v1.2.0.zip /tmp/CoPaRe-install
 rm -rf /Applications/CoPaRe.app
 cp -R /tmp/CoPaRe-install/CoPaRe.app /Applications/CoPaRe.app
 open /Applications/CoPaRe.app
@@ -80,6 +80,9 @@ xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS
 - Optional one-time copy for unpinned history items
 - Optional local lock/unlock gate before history is shown, with `userPresence` protection for the saved-snippets vault when enabled
 - One-click re-copy for every entry
+- Sparkle-based updates with background checks at launch
+- Signed appcast feed plus EdDSA-signed update archives
+- Sparkle installer flow with one-click verified update prompts
 - Menu bar quick panel for fast access
 - Menu bar actions for copy, pin/unpin, reveal in Finder, and secure delete
 - Session-only clipboard capture with no automatic history-at-rest
@@ -105,6 +108,7 @@ CoPaRe uses practical hardening appropriate for a local clipboard manager:
 - Focused detail payload cleared when the app resigns active and after a short timeout
 - No automatic Keychain access in the normal application launch path; Keychain is touched only when saving or explicitly loading the encrypted snippets vault
 - When app lock is enabled, the saved-snippets vault key is stored with `userPresence`, so macOS requires system authentication before releasing that key
+- Outbound network access is limited to Sparkle update checks against the configured appcast feed and downloading signed update archives when an update is accepted
 - No analytics or outbound telemetry code in the app source
 
 ## Security model limits
@@ -132,13 +136,15 @@ Additional details: see [SECURITY.md](SECURITY.md).
 
 ## Signed DMG release flow
 
-Use `scripts/release.sh` when you want a signed distribution DMG.
+Use `scripts/release.sh` when you want a signed distribution DMG and a Sparkle-ready update archive.
 
 The script:
 
 - builds a Release app
 - signs the app with your `Developer ID Application` certificate
 - validates security entitlements
+- creates `release/CoPaRe-vX.Y.Z.zip` from the signed app bundle for Sparkle
+- refreshes `release/appcast.xml` using Sparkle's `generate_appcast` tool and your EdDSA update key
 - optionally installs the app to `/Applications`
 - creates a DMG in `dist/`
 - signs the DMG
@@ -153,10 +159,26 @@ Example:
   --notary-profile "copare-notary"
 ```
 
+One-time Sparkle setup before your first release:
+
+```bash
+xcodebuild -resolvePackageDependencies \
+  -project CoPaRe.xcodeproj \
+  -clonedSourcePackagesDirPath build/SourcePackages
+./build/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys --account io.copare.sparkle
+```
+
+Notes:
+
+- `scripts/release.sh` uses `io.copare.sparkle` as the default Sparkle key account
+- override `SPARKLE_DOWNLOAD_URL_PREFIX` if you want the appcast to point to GitHub Releases instead of `raw.githubusercontent.com`
+
 Typical outputs:
 
-- `dist/CoPaRe-v1.1.0.dmg`
-- `dist/CoPaRe-v1.1.0.dmg.sha256`
+- `release/CoPaRe-v1.2.0.zip`
+- `release/appcast.xml`
+- `dist/CoPaRe-v1.2.0.dmg`
+- `dist/CoPaRe-v1.2.0.dmg.sha256`
 
 ## Configuration reference
 
@@ -190,8 +212,10 @@ Typical outputs:
 - `CoPaRe/` app source
 - `CoPaReTests/` unit tests
 - `CoPaReUITests/` UI tests
+- `CoPaRe-Info.plist` explicit app Info.plist containing Sparkle configuration
 - `docs/images/` screenshots used in this README
 - `release/` prebuilt public archive included in the repository
+- `release/appcast.xml` Sparkle appcast feed signed with the project's EdDSA update key
 - `scripts/` release automation and security verification helpers
 - `LICENSE` CoPaRe Community License 1.0
 - `NOTICE` required attribution and origin notice that redistributions must keep

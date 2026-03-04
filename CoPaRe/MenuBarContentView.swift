@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MenuBarContentView: View {
     @EnvironmentObject private var manager: ClipboardManager
+    @EnvironmentObject private var updates: AppUpdateChecker
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
@@ -33,6 +34,11 @@ struct MenuBarContentView: View {
             manager.clearHistory(keepPinned: true)
         }
         .disabled(manager.isLocked)
+
+        Button(updates.isSessionInProgress ? "Update session in progress" : "Check for Updates…") {
+            updates.checkForUpdates()
+        }
+        .disabled(!updates.canCheckForUpdates)
 
         Divider()
 

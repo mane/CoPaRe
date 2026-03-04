@@ -19,6 +19,7 @@ Implemented controls:
 - No automatic Keychain access in the normal app launch path; Keychain is touched only when saving or explicitly loading the encrypted snippets vault
 - When app lock is enabled, the saved-snippets vault key is stored with `userPresence`, so macOS requires system authentication before releasing that key
 - Re-copied text is marked with concealed/auto-generated pasteboard types to discourage capture by other well-behaved clipboard tools
+- In-app updates are handled by Sparkle using a signed appcast feed and EdDSA-signed archives
 - No telemetry/tracking code paths in app source
 
 ## What CoPaRe does not claim

@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var manager: ClipboardManager
+    @EnvironmentObject private var updates: AppUpdateChecker
 
     private var panelColor: Color {
         Color(nsColor: NSColor.controlBackgroundColor)
@@ -81,6 +82,39 @@ struct SettingsView: View {
                     counterRow(title: "Unlock events", value: manager.securityCounters.unlockEvents)
                 }
 
+                sectionCard(title: "Updates") {
+                    counterRow(title: "Current version", value: updates.currentVersion)
+
+                    Text(updates.statusSummary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    Toggle(
+                        "Check automatically",
+                        isOn: Binding(
+                            get: { updates.automaticallyChecksForUpdates },
+                            set: { updates.setAutomaticallyChecks($0) }
+                        )
+                    )
+
+                    Toggle(
+                        "Download updates automatically",
+                        isOn: Binding(
+                            get: { updates.automaticallyDownloadsUpdates },
+                            set: { updates.setAutomaticallyDownloads($0) }
+                        )
+                    )
+                    .disabled(!updates.allowsAutomaticUpdates || !updates.automaticallyChecksForUpdates)
+
+                    HStack(spacing: 10) {
+                        Button(updates.isSessionInProgress ? "Updating…" : "Check now") {
+                            updates.checkForUpdates()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!updates.canCheckForUpdates)
+                    }
+                }
+
                 sectionCard(title: "Danger Zone") {
                     Button("Secure wipe entire history", role: .destructive) {
                         manager.secureWipeEntireHistory()
@@ -116,6 +150,15 @@ struct SettingsView: View {
             Text(title)
             Spacer()
             Text("\(value)")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func counterRow(title: String, value: String) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            Text(value)
                 .foregroundStyle(.secondary)
         }
     }

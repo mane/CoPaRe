@@ -1,0 +1,31 @@
+<?xml version="1.0" standalone="yes"?>
+<!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+-->
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>CoPaRe</title>
+        <item>
+            <title>1.2.0</title>
+            <pubDate>Wed, 04 Mar 2026 12:32:07 +0100</pubDate>
+            <sparkle:version>3</sparkle:version>
+            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://raw.githubusercontent.com/mane/CoPaRe/main/release/CoPaRe-v1.2.0.zip" length="5211930" type="application/octet-stream" sparkle:edSignature="8vVJmizmYWGsZ5elkfLriUdBMEthe+UY6h7tTJrAN+77nE15ErP+gv4gFMuHrn+U5mc12PKQwk4sT+vyk1UcAg=="/>
+        </item>
+        <item>
+            <title>1.1.0</title>
+            <pubDate>Sun, 01 Mar 2026 18:36:11 +0100</pubDate>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://raw.githubusercontent.com/mane/CoPaRe/main/release/CoPaRe-v1.1.0.zip" length="4178039" type="application/octet-stream"/>
+        </item>
+    </channel>
+</rss>
+<!-- sparkle-signatures:
+edSignature: mJaswNPjyqEPzTPMLOCKUaya/AYQN9qdJ+g2Wp6VenMM4LdJI4Uygyy9mzot5Q38MI0igvxz5Ye4vkzHc41KCA==
+length: 1671
+-->

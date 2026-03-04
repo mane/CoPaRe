@@ -9,6 +9,7 @@ VOLUME_NAME="${APP_NAME} Installer"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="${ROOT_DIR}/dist"
+RELEASE_DIR="${ROOT_DIR}/release"
 BUILD_DIR="${ROOT_DIR}/build/release"
 DERIVED_DATA_DIR="${BUILD_DIR}/DerivedData"
 DMG_ROOT_DIR="${DIST_DIR}/dmg-root"
@@ -20,6 +21,8 @@ INSTALL_PATH="${INSTALL_PATH:-/Applications/${APP_NAME}.app}"
 SKIP_NOTARIZE="${SKIP_NOTARIZE:-0}"
 SKIP_INSTALL="${SKIP_INSTALL:-0}"
 CLEAN_BUILD="${CLEAN_BUILD:-1}"
+SPARKLE_KEY_ACCOUNT="${SPARKLE_KEY_ACCOUNT:-io.copare.sparkle}"
+SPARKLE_DOWNLOAD_URL_PREFIX="${SPARKLE_DOWNLOAD_URL_PREFIX:-https://raw.githubusercontent.com/mane/CoPaRe/main/release/}"
 
 usage() {
   cat <<'USAGE'
@@ -38,6 +41,7 @@ Options:
 
 Environment variable equivalents:
   SIGN_IDENTITY, NOTARY_PROFILE, VERSION, INSTALL_PATH, SKIP_NOTARIZE=1, SKIP_INSTALL=1, CLEAN_BUILD=0
+  SPARKLE_KEY_ACCOUNT, SPARKLE_DOWNLOAD_URL_PREFIX
 USAGE
 }
 
@@ -126,8 +130,13 @@ RELEASE_VERSION="$(resolve_version)"
 DMG_NAME="${APP_NAME}-v${RELEASE_VERSION}.dmg"
 DMG_PATH="${DIST_DIR}/${DMG_NAME}"
 SHA_PATH="${DMG_PATH}.sha256"
+ZIP_NAME="${APP_NAME}-v${RELEASE_VERSION}.zip"
+ZIP_PATH="${RELEASE_DIR}/${ZIP_NAME}"
 APP_PRODUCT_PATH="${DERIVED_DATA_DIR}/Build/Products/${CONFIGURATION}/${APP_NAME}.app"
 STAGED_APP_PATH="${DMG_ROOT_DIR}/${APP_NAME}.app"
+SPARKLE_BIN_DIR="${DERIVED_DATA_DIR}/SourcePackages/artifacts/sparkle/Sparkle/bin"
+GENERATE_APPCAST_BIN="${SPARKLE_BIN_DIR}/generate_appcast"
+DISTRIBUTION_ENTITLEMENTS="${ROOT_DIR}/CoPaRe/CoPaRe.Distribution.entitlements"
 
 cleanup_mount() {
   if [[ -n "${MOUNT_POINT:-}" && -d "${MOUNT_POINT}" ]]; then
@@ -136,7 +145,7 @@ cleanup_mount() {
 }
 trap cleanup_mount EXIT
 
-mkdir -p "${DIST_DIR}" "${BUILD_DIR}"
+mkdir -p "${DIST_DIR}" "${RELEASE_DIR}" "${BUILD_DIR}"
 
 if [[ "${CLEAN_BUILD}" == "1" ]]; then
   echo "[1/9] Clean build ${APP_NAME} (${CONFIGURATION})"
@@ -158,41 +167,58 @@ ditto "${APP_PRODUCT_PATH}" "${STAGED_APP_PATH}"
 
 echo "[3/9] Sign app bundle"
 codesign --deep --force --verify --verbose --options runtime --timestamp \
-  --preserve-metadata=identifier,entitlements,flags \
+  --entitlements "${DISTRIBUTION_ENTITLEMENTS}" \
+  --preserve-metadata=identifier \
   --sign "${SIGN_IDENTITY}" "${STAGED_APP_PATH}"
 codesign --verify --deep --strict --verbose=2 "${STAGED_APP_PATH}"
 "${ROOT_DIR}/scripts/security-check.sh" "${STAGED_APP_PATH}"
 
+if [[ ! -x "${GENERATE_APPCAST_BIN}" ]]; then
+  echo "Error: Sparkle generate_appcast tool not found at ${GENERATE_APPCAST_BIN}" >&2
+  echo "Run xcodebuild once to resolve package dependencies, or verify the project still includes Sparkle." >&2
+  exit 1
+fi
+
+echo "[4/11] Create Sparkle update archive ${ZIP_NAME}"
+rm -f "${ZIP_PATH}"
+ditto -c -k --sequesterRsrc --keepParent "${STAGED_APP_PATH}" "${ZIP_PATH}"
+
+echo "[5/11] Refresh Sparkle appcast"
+"${GENERATE_APPCAST_BIN}" \
+  --account "${SPARKLE_KEY_ACCOUNT}" \
+  --download-url-prefix "${SPARKLE_DOWNLOAD_URL_PREFIX}" \
+  "${RELEASE_DIR}"
+
 if [[ "${SKIP_INSTALL}" != "1" ]]; then
-  echo "[4/9] Install app to ${INSTALL_PATH}"
+  echo "[6/11] Install app to ${INSTALL_PATH}"
   rm -rf "${INSTALL_PATH}"
   ditto "${STAGED_APP_PATH}" "${INSTALL_PATH}"
   echo "Installed: ${INSTALL_PATH}"
 else
-  echo "[4/9] Install skipped"
+  echo "[6/11] Install skipped"
 fi
 
-echo "[5/9] Create DMG ${DMG_NAME}"
+echo "[7/11] Create DMG ${DMG_NAME}"
 rm -f "${DMG_PATH}" "${SHA_PATH}"
 hdiutil create -volname "${VOLUME_NAME}" -srcfolder "${DMG_ROOT_DIR}" -ov -format UDZO "${DMG_PATH}"
 
-echo "[6/9] Sign DMG"
+echo "[8/11] Sign DMG"
 codesign --force --timestamp --sign "${SIGN_IDENTITY}" "${DMG_PATH}"
 codesign --verify --verbose=2 "${DMG_PATH}"
 
 if [[ "${SKIP_NOTARIZE}" != "1" ]]; then
-  echo "[7/9] Notarize DMG (profile: ${NOTARY_PROFILE})"
+  echo "[9/11] Notarize DMG (profile: ${NOTARY_PROFILE})"
   xcrun notarytool submit "${DMG_PATH}" --keychain-profile "${NOTARY_PROFILE}" --wait
 
-  echo "[8/9] Staple + validate"
+  echo "[10/11] Staple + validate"
   xcrun stapler staple "${DMG_PATH}"
   xcrun stapler validate "${DMG_PATH}"
 else
-  echo "[7/9] Notarization skipped"
-  echo "[8/9] Stapling skipped"
+  echo "[9/11] Notarization skipped"
+  echo "[10/11] Stapling skipped"
 fi
 
-echo "[9/9] Verify + SHA256"
+echo "[11/11] Verify + SHA256"
 spctl -a -t open -vv "${DMG_PATH}" || true
 ATTACH_OUT="$(hdiutil attach "${DMG_PATH}" -readonly -nobrowse)"
 MOUNT_POINT="$(printf '%s\n' "${ATTACH_OUT}" | awk '/\/Volumes\// {for (i=1;i<=NF;i++) if ($i ~ /^\/Volumes\//) {print substr($0, index($0, $i)); exit}}')"
@@ -212,6 +238,8 @@ fi
 echo ""
 echo "Release completed"
 echo "- App (staged): ${STAGED_APP_PATH}"
+echo "- ZIP (Sparkle archive): ${ZIP_PATH}"
+echo "- Appcast: ${RELEASE_DIR}/appcast.xml"
 echo "- DMG: ${DMG_PATH}"
 echo "- SHA256: ${SHA_PATH}"
 if [[ "${SKIP_INSTALL}" != "1" ]]; then
