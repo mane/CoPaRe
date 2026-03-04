@@ -6,6 +6,18 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>CoPaRe</title>
         <item>
+            <title>1.2.1</title>
+            <pubDate>Wed, 04 Mar 2026 16:43:10 +0100</pubDate>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>1.2.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://raw.githubusercontent.com/mane/CoPaRe/main/release/CoPaRe-v1.2.1.zip" length="5281482" type="application/octet-stream" sparkle:edSignature="ZXJ4ZvQ+zgNdx1vgCKJUOeCaIsZQm7oCm9Lxnyn6F5c5j7IKQPY+ZPrXSOdNWmNkLMp/TcV/z0IWBZF2M5MuAw=="/>
+            <sparkle:deltas>
+                <enclosure url="https://raw.githubusercontent.com/mane/CoPaRe/main/release/CoPaRe4-3.delta" sparkle:deltaFrom="3" length="192094" type="application/octet-stream" sparkle:deltaFromSparkleExecutableSize="977616" sparkle:deltaFromSparkleLocales="de,he,ar,el,ja,fa,uk" sparkle:edSignature="vh8UP+qXaTpzS7CVxjxjOFxr+DcMk7BL3p3GVT8dARx06g/+lFCt4i3eaS+L3I4gWUXkgChiQ8s5ag5fDxAJDw=="/>
+            </sparkle:deltas>
+        </item>
+        <item>
             <title>1.2.0</title>
             <pubDate>Wed, 04 Mar 2026 12:32:07 +0100</pubDate>
             <sparkle:version>3</sparkle:version>
@@ -26,6 +38,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: mJaswNPjyqEPzTPMLOCKUaya/AYQN9qdJ+g2Wp6VenMM4LdJI4Uygyy9mzot5Q38MI0igvxz5Ye4vkzHc41KCA==
-length: 1671
+edSignature: HVvE9OXIYijkjlb19dHR+eJwYMjmZLfnNpdJ+T7oSjYFMaMLcVlqI+ZFw8Xq3u/mAHU35H3X3dYw+XC5gPvrDA==
+length: 2800
 -->
