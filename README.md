@@ -1,7 +1,7 @@
 # CoPaRe
 
 CoPaRe is a security-focused clipboard manager for macOS.
-It keeps captured clipboard history session-only, stores only user-authored snippets across restarts when enabled, and avoids bundling personal signing metadata in the public source repository.
+It keeps captured clipboard history session-only and stores only user-authored snippets across restarts when enabled.
 
 ## Screenshots
 
@@ -19,24 +19,32 @@ It keeps captured clipboard history session-only, stores only user-authored snip
 
 ## Download and install
 
-### Option 1: Use the bundled archive
+### Option 1: Use the latest GitHub release (recommended)
 
-This repository includes a prebuilt archive in `release/`:
+The recommended install path is the latest notarized GitHub release:
 
-- `release/CoPaRe-v1.2.0.zip`
+- [Latest release](https://github.com/mane/CoPaRe/releases/latest)
+
+Use the DMG included in the release assets for the smoothest first install experience.
+
+### Option 2: Use the bundled Sparkle archive from the repository
+
+This repository also includes the current Sparkle update archive in `release/`:
+
+- `release/CoPaRe-v1.2.1.zip`
 
 What it contains:
 
 - `CoPaRe.app`
-- ad-hoc signature (`TeamIdentifier=not set`) so no personal Developer ID details are embedded in the public repository
-- hardened runtime flag enabled in the bundled app signature
-- note: a macOS `.app` is a bundle directory, so for GitHub release assets you should upload a `.zip` or `.dmg`, not the raw bundle
+- the same signed update payload used by Sparkle
+- a bundle-ready archive for manual extraction or self-hosted update distribution
+- note: a macOS `.app` is a bundle directory, so GitHub release assets should be uploaded as `.zip` or `.dmg`, not as the raw bundle
 
 Install:
 
 ```bash
 mkdir -p /tmp/CoPaRe-install
-ditto -x -k release/CoPaRe-v1.2.0.zip /tmp/CoPaRe-install
+ditto -x -k release/CoPaRe-v1.2.1.zip /tmp/CoPaRe-install
 rm -rf /Applications/CoPaRe.app
 cp -R /tmp/CoPaRe-install/CoPaRe.app /Applications/CoPaRe.app
 open /Applications/CoPaRe.app
@@ -44,10 +52,11 @@ open /Applications/CoPaRe.app
 
 Notes:
 
-- Because the bundled archive is not Developer ID notarized, macOS may require `Right click > Open` on first launch.
-- If you want a notarized DMG, generate it with `scripts/release.sh` as described below.
+- The repository ZIP is the Sparkle update payload, not a notarized installer container.
+- For manual installs from this ZIP, macOS may still require `Right click > Open` on first launch.
+- If you want a notarized distribution package, use the GitHub release DMG or generate one with `scripts/release.sh`.
 
-### Option 2: Build from source
+### Option 3: Build from source
 
 Requirements:
 
@@ -78,11 +87,13 @@ xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS
 - Per-app capture exclusions using bundle identifiers
 - Entry time-to-live controls for captured, unpinned history items
 - Optional one-time copy for unpinned history items
-- Optional local lock/unlock gate before history is shown, with `userPresence` protection for the saved-snippets vault when enabled
+- Optional local lock/unlock gate that removes the active history from the normal in-memory view path, pauses capture while locked, and uses local authentication to restore it
+- `userPresence` protection for the saved-snippets vault when app lock is enabled
 - One-click re-copy for every entry
 - Sparkle-based updates with background checks at launch
 - Signed appcast feed plus EdDSA-signed update archives
 - Sparkle installer flow with one-click verified update prompts
+- Manual update check in the macOS app menu (`CoPaRe > Check for Updates…`)
 - Menu bar quick panel for fast access
 - Menu bar actions for copy, pin/unpin, reveal in Finder, and secure delete
 - Session-only clipboard capture with no automatic history-at-rest
@@ -99,6 +110,7 @@ CoPaRe uses practical hardening appropriate for a local clipboard manager:
 - Hardened runtime enabled for release distribution builds produced by `scripts/release.sh`
 - Captured clipboard history is never written to disk and is cleared when CoPaRe quits
 - Runtime payloads are wrapped with an in-memory session key and revealed on demand for re-copy or focused detail view
+- Locking CoPaRe temporarily removes the live history from the normal in-memory path, encrypts a short-lived lock snapshot, and pauses clipboard capture until unlock
 - Optional snippet persistence stores only user-authored snippets in an encrypted vault stored in the app support container with restrictive local file permissions
 - Search avoids indexing full text bodies in RAM; only visible previews and minimal file labels remain searchable
 - Protected pasteboard-type detection for concealed/password-manager clipboard content
@@ -108,12 +120,13 @@ CoPaRe uses practical hardening appropriate for a local clipboard manager:
 - Focused detail payload cleared when the app resigns active and after a short timeout
 - No automatic Keychain access in the normal application launch path; Keychain is touched only when saving or explicitly loading the encrypted snippets vault
 - When app lock is enabled, the saved-snippets vault key is stored with `userPresence`, so macOS requires system authentication before releasing that key
+- The temporary lock snapshot key is reused through a single authenticated unlock flow to avoid repeated prompts
 - Outbound network access is limited to Sparkle update checks against the configured appcast feed and downloading signed update archives when an update is accepted
 - No analytics or outbound telemetry code in the app source
 
 ## Security model limits
 
-- No clipboard manager can reliably detect every secret copied by a user.
+- No clipboard manager can reliably detect every secret copied by a user; CoPaRe's sensitive-content filtering is a best-effort safety net, not a guarantee.
 - The optional search experience is intentionally narrower than traditional clipboard managers because CoPaRe avoids retaining full plaintext bodies in RAM for global indexing.
 - If the logged-in macOS session is already compromised, clipboard contents can still be exposed.
 - CoPaRe is not a replacement for OS hardening, endpoint protection, or account security.
@@ -169,7 +182,7 @@ Use `scripts/release.sh` when you want a signed distribution DMG and a Sparkle-r
 
 The script:
 
-- builds a Release app
+- builds a Distribution app
 - signs the app with your `Developer ID Application` certificate
 - validates security entitlements
 - creates `release/CoPaRe-vX.Y.Z.zip` from the signed app bundle for Sparkle
@@ -209,10 +222,11 @@ Notes:
 
 Typical outputs:
 
-- `release/CoPaRe-v1.2.0.zip`
+- `release/CoPaRe-v1.2.1.zip`
+- `release/CoPaRe4-3.delta` (when Sparkle can generate a delta from the previous build)
 - `release/appcast.xml`
-- `dist/CoPaRe-v1.2.0.dmg`
-- `dist/CoPaRe-v1.2.0.dmg.sha256`
+- `dist/CoPaRe-v1.2.1.dmg`
+- `dist/CoPaRe-v1.2.1.dmg.sha256`
 
 ## Configuration reference
 
@@ -238,7 +252,7 @@ Typical outputs:
 - Pinned items and snippets are preserved when you use the standard "Clear unpinned history" action.
 - Captured clipboard history is always memory-only and is not restored after relaunch.
 - Secure delete of individual entries removes them from the current session immediately.
-- "Secure wipe entire history" removes all items, best-effort overwrites and deletes the encrypted snippets vault, and deletes the snippet encryption key.
+- "Secure wipe entire history" removes all items, deletes the encrypted snippets vault file if present, and destroys the snippet encryption keys (crypto-shredding).
 - Security event counters are local-only and track blocked sensitive captures, excluded-app skips, expired entries, secure wipes, and unlock events.
 
 ## Repository layout
@@ -248,8 +262,8 @@ Typical outputs:
 - `CoPaReUITests/` UI tests
 - `CoPaRe-Info.plist` explicit app Info.plist containing Sparkle configuration
 - `docs/images/` screenshots used in this README
-- `release/` prebuilt public archive included in the repository
-- `release/appcast.xml` Sparkle appcast feed signed with the project's EdDSA update key
+- `release/` Sparkle update archives, optional delta archives, and the signed appcast feed committed for update distribution
+- `dist/` locally generated DMGs and checksums created by `scripts/release.sh` (not intended to stay versioned in git)
 - `scripts/` versioning, release automation, and security verification helpers
 - `LICENSE` CoPaRe Community License 1.0
 - `NOTICE` required attribution and origin notice that redistributions must keep
