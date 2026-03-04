@@ -91,28 +91,33 @@ actor SnippetStore {
         fileManager.fileExists(atPath: fileURL.path)
     }
 
-    func loadSnippets() -> [ClipboardHistoryItem]? {
+    func loadSnippets(allowLegacyUnencryptedImport: Bool = false) -> [ClipboardHistoryItem]? {
         do {
             guard fileManager.fileExists(atPath: fileURL.path) else {
                 return []
             }
 
             let storedData = try Data(contentsOf: fileURL)
-            let snippets: [PersistedSnippet]
-            if let envelope = try? JSONDecoder().decode(Envelope.self, from: storedData) {
-                let nonce = try AES.GCM.Nonce(data: envelope.nonce)
-                let sealedBox = try AES.GCM.SealedBox(
-                    nonce: nonce,
-                    ciphertext: envelope.ciphertext,
-                    tag: envelope.tag
-                )
-                let keyService = envelope.keyService ?? Self.snippetKeyService
-                let key = try keyProvider(for: keyService).loadOrCreateKey()
-                let decryptedData = try AES.GCM.open(sealedBox, using: key)
-                snippets = try JSONDecoder().decode([PersistedSnippet].self, from: decryptedData)
-            } else {
-                snippets = try JSONDecoder().decode([PersistedSnippet].self, from: storedData)
+            guard let envelope = try? JSONDecoder().decode(Envelope.self, from: storedData) else {
+                if allowLegacyUnencryptedImport {
+                    let legacySnippets = try JSONDecoder().decode([PersistedSnippet].self, from: storedData)
+                    return legacySnippets.compactMap(makeHistoryItem)
+                }
+
+                logger.error("Rejected unencrypted or malformed legacy snippet store at \(self.fileURL.path, privacy: .public)")
+                return nil
             }
+
+            let nonce = try AES.GCM.Nonce(data: envelope.nonce)
+            let sealedBox = try AES.GCM.SealedBox(
+                nonce: nonce,
+                ciphertext: envelope.ciphertext,
+                tag: envelope.tag
+            )
+            let keyService = envelope.keyService ?? Self.snippetKeyService
+            let key = try keyProvider(for: keyService).loadOrCreateKey()
+            let decryptedData = try AES.GCM.open(sealedBox, using: key)
+            let snippets = try JSONDecoder().decode([PersistedSnippet].self, from: decryptedData)
 
             return snippets.compactMap(makeHistoryItem)
         } catch {

@@ -535,17 +535,14 @@ final class ClipboardManager: ObservableObject {
             }
 
             if persistSnippets {
-                var snapshot = currentSnapshot
                 if hasStoredSnippets && !areStoredSnippetsLoaded {
-                    guard let stored = await snippetStore.loadSnippets() else {
-                        return
-                    }
-                    let currentIDs = Set(snapshot.map(\.id))
-                    snapshot.append(contentsOf: stored.filter { !currentIDs.contains($0.id) })
+                    self.hasSavedSnippetsAvailable = true
+                    self.savedSnippetsLoaded = false
+                    return
                 }
 
-                await snippetStore.saveSnippets(snapshot, requireUserPresence: requireUserPresence)
-                self.hasSavedSnippetsAvailable = !snapshot.isEmpty
+                await snippetStore.saveSnippets(currentSnapshot, requireUserPresence: requireUserPresence)
+                self.hasSavedSnippetsAvailable = !currentSnapshot.isEmpty
                 self.savedSnippetsLoaded = true
             } else {
                 self.hasSavedSnippetsAvailable = false
