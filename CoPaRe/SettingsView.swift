@@ -105,14 +105,6 @@ struct SettingsView: View {
                         )
                     )
                     .disabled(!updates.allowsAutomaticUpdates || !updates.automaticallyChecksForUpdates)
-
-                    HStack(spacing: 10) {
-                        Button(updates.isSessionInProgress ? "Updating…" : "Check now") {
-                            updates.checkForUpdates()
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(!updates.canCheckForUpdates)
-                    }
                 }
 
                 sectionCard(title: "Danger Zone") {

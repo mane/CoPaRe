@@ -4,7 +4,6 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var manager: ClipboardManager
     @EnvironmentObject private var settings: SettingsStore
-    @EnvironmentObject private var updates: AppUpdateChecker
     @State private var selectedItemID: UUID?
     @State private var selectedPayload: ClipboardItemPayload?
     @State private var selectedPayloadItemID: UUID?
@@ -47,12 +46,6 @@ struct ContentView: View {
         .background(Color(nsColor: NSColor.windowBackgroundColor))
         .toolbar {
             ToolbarItemGroup {
-                Button(updates.isSessionInProgress ? "Updating…" : "Check for Updates") {
-                    updates.checkForUpdates()
-                }
-                .disabled(!updates.canCheckForUpdates)
-                .help("Check for signed CoPaRe updates with Sparkle")
-
                 if manager.hasSavedSnippetsAvailable && !manager.savedSnippetsLoaded {
                     Button("Load Saved Snippets") {
                         Task {
@@ -213,27 +206,6 @@ struct ContentView: View {
                 }
             }
             .padding(.horizontal, 2)
-
-            panel {
-                HStack(alignment: .center, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Label("Signed updates", systemImage: "checkmark.shield")
-                            .font(.subheadline.weight(.semibold))
-
-                        Text("CoPaRe uses Sparkle with a signed appcast, EdDSA update signatures, and code-signing validation.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    Button("Check now") {
-                        updates.checkForUpdates()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!updates.canCheckForUpdates)
-                }
-            }
 
             Picker("Filter", selection: $manager.activeFilter) {
                 ForEach(ClipboardFilter.allCases) { filter in

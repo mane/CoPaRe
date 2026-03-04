@@ -21,6 +21,14 @@ struct CoPaReApp: App {
                 .environmentObject(updates)
         }
         .defaultSize(width: 1_120, height: 740)
+        .commands {
+            CommandGroup(after: .appInfo) {
+                Button(updates.isSessionInProgress ? "Update Session In Progress" : "Check for Updates…") {
+                    updates.checkForUpdates()
+                }
+                .disabled(!updates.canCheckForUpdates)
+            }
+        }
 
         Settings {
             SettingsView()
@@ -32,7 +40,6 @@ struct CoPaReApp: App {
         MenuBarExtra("CoPaRe", systemImage: "paperclip.circle.fill") {
             MenuBarContentView()
                 .environmentObject(manager)
-                .environmentObject(updates)
         }
         .menuBarExtraStyle(.menu)
     }
