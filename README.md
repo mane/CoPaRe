@@ -134,6 +134,35 @@ Or build a fresh local Release bundle and verify it automatically:
 
 Additional details: see [SECURITY.md](SECURITY.md).
 
+## Release versioning
+
+CoPaRe uses semantic versioning for release builds:
+
+- `major` for breaking changes (`BREAKING CHANGE` in the commit body or conventional-commit `!:` markers)
+- `minor` for new features (`feat:` commits, or commit subjects that start with `Add`, `Introduce`, or `Integrate`)
+- `patch` for fixes, hardening, UI refinements, docs, packaging, and maintenance changes
+
+The release baseline is tracked with annotated git tags named `vX.Y.Z`.
+Version inference compares commits since the latest release tag.
+
+Helpers:
+
+```bash
+./scripts/version.sh current
+./scripts/version.sh next
+./scripts/version.sh bump
+./scripts/version.sh tag
+```
+
+Typical flow before cutting a new release:
+
+```bash
+./scripts/version.sh bump
+git commit -am "Bump release to vX.Y.Z"
+./scripts/version.sh tag
+git push origin main --tags
+```
+
 ## Signed DMG release flow
 
 Use `scripts/release.sh` when you want a signed distribution DMG and a Sparkle-ready update archive.
@@ -154,6 +183,11 @@ The script:
 Example:
 
 ```bash
+./scripts/version.sh bump
+git commit -am "Bump release to vX.Y.Z"
+./scripts/version.sh tag
+git push origin main --tags
+
 ./scripts/release.sh \
   --sign-identity "Developer ID Application: NAME SURNAME (TEAMID)" \
   --notary-profile "copare-notary"
@@ -216,7 +250,7 @@ Typical outputs:
 - `docs/images/` screenshots used in this README
 - `release/` prebuilt public archive included in the repository
 - `release/appcast.xml` Sparkle appcast feed signed with the project's EdDSA update key
-- `scripts/` release automation and security verification helpers
+- `scripts/` versioning, release automation, and security verification helpers
 - `LICENSE` CoPaRe Community License 1.0
 - `NOTICE` required attribution and origin notice that redistributions must keep
 
