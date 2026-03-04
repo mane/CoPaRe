@@ -43,11 +43,6 @@ final class AppUpdateChecker: NSObject, ObservableObject {
         return "Automatic update checks are disabled. You can still run a manual, verified update check at any time."
     }
 
-    func checkOnLaunch() async {
-        // Sparkle is started during initialization so the background check can run
-        // before the next runloop cycle, as required by its scheduler.
-    }
-
     func checkForUpdates() {
         updaterController.checkForUpdates(nil)
     }

@@ -15,21 +15,10 @@ actor SnippetStore {
     private struct PersistedSnippet: Codable {
         let id: UUID
         let preview: String
-        let body: String?
+        let body: String
         let createdAt: Date
         let updatedAt: Date
         let pinnedAt: Date?
-        let encryptedPayload: EncryptedClipboardPayload?
-
-        private enum CodingKeys: String, CodingKey {
-            case id
-            case preview
-            case body
-            case createdAt
-            case updatedAt
-            case pinnedAt
-            case encryptedPayload
-        }
 
         init(
             id: UUID,
@@ -45,29 +34,6 @@ actor SnippetStore {
             self.createdAt = createdAt
             self.updatedAt = updatedAt
             self.pinnedAt = pinnedAt
-            encryptedPayload = nil
-        }
-
-        init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            id = try container.decode(UUID.self, forKey: .id)
-            preview = try container.decode(String.self, forKey: .preview)
-            body = try container.decodeIfPresent(String.self, forKey: .body)
-            createdAt = try container.decode(Date.self, forKey: .createdAt)
-            updatedAt = try container.decode(Date.self, forKey: .updatedAt)
-            pinnedAt = try container.decodeIfPresent(Date.self, forKey: .pinnedAt)
-            encryptedPayload = try container.decodeIfPresent(EncryptedClipboardPayload.self, forKey: .encryptedPayload)
-        }
-
-        func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(id, forKey: .id)
-            try container.encode(preview, forKey: .preview)
-            try container.encodeIfPresent(body, forKey: .body)
-            try container.encode(createdAt, forKey: .createdAt)
-            try container.encode(updatedAt, forKey: .updatedAt)
-            try container.encodeIfPresent(pinnedAt, forKey: .pinnedAt)
-            try container.encodeIfPresent(encryptedPayload, forKey: .encryptedPayload)
         }
     }
 
@@ -91,7 +57,7 @@ actor SnippetStore {
         fileManager.fileExists(atPath: fileURL.path)
     }
 
-    func loadSnippets(allowLegacyUnencryptedImport: Bool = false) -> [ClipboardHistoryItem]? {
+    func loadSnippets() -> [ClipboardHistoryItem]? {
         do {
             guard fileManager.fileExists(atPath: fileURL.path) else {
                 return []
@@ -99,11 +65,6 @@ actor SnippetStore {
 
             let storedData = try Data(contentsOf: fileURL)
             guard let envelope = try? JSONDecoder().decode(Envelope.self, from: storedData) else {
-                if allowLegacyUnencryptedImport {
-                    let legacySnippets = try JSONDecoder().decode([PersistedSnippet].self, from: storedData)
-                    return legacySnippets.compactMap(makeHistoryItem)
-                }
-
                 logger.error("Rejected unencrypted or malformed legacy snippet store at \(self.fileURL.path, privacy: .public)")
                 return nil
             }
@@ -131,7 +92,7 @@ actor SnippetStore {
             try ensureStorageDirectory()
 
             let snippets = items
-                .filter(\.isSnippet)
+                .filter { $0.isSnippet }
                 .compactMap(makePersistedSnippet)
 
             if snippets.isEmpty {
@@ -171,21 +132,6 @@ actor SnippetStore {
                 return
             }
 
-            let fileSize = (try? fileManager.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber)?.intValue ?? 0
-            if fileSize > 0 {
-                let zeroes = Data(repeating: 0, count: fileSize)
-                if let handle = try? FileHandle(forWritingTo: fileURL) {
-                    try handle.truncate(atOffset: 0)
-                    try handle.write(contentsOf: zeroes)
-                    if #available(macOS 10.15.4, *) {
-                        try handle.synchronize()
-                    } else {
-                        handle.synchronizeFile()
-                    }
-                    try handle.close()
-                }
-            }
-
             try fileManager.removeItem(at: fileURL)
         } catch {
             logger.error("Failed to clear snippets file: \(error.localizedDescription, privacy: .public)")
@@ -193,20 +139,8 @@ actor SnippetStore {
     }
 
     private func makeHistoryItem(from snippet: PersistedSnippet) -> ClipboardHistoryItem? {
-        let body: String
-        if let snippetBody = snippet.body {
-            body = snippetBody
-        } else if let encryptedPayload = snippet.encryptedPayload,
-                  let payload = try? encryptedPayload.open(),
-                  let plainText = payload.plainText
-        {
-            body = plainText
-        } else {
-            return nil
-        }
-
         let payload = ClipboardItemPayload(
-            plainText: body,
+            plainText: snippet.body,
             imagePNGData: nil,
             filePaths: nil
         )
@@ -226,8 +160,8 @@ actor SnippetStore {
             searchIndex: String(snippet.preview.prefix(120)),
             thumbnailPNGData: nil,
             encryptedPayload: runtimePayload,
-            digest: digest(for: "snippet:\(snippet.preview)\n\(body)"),
-            byteSize: Data(body.utf8).count,
+            digest: digest(for: "snippet:\(snippet.preview)\n\(snippet.body)"),
+            byteSize: Data(snippet.body.utf8).count,
             origin: .snippet,
             captureCount: 1,
             sourceBundleIdentifier: nil

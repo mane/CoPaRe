@@ -41,6 +41,36 @@ struct SecurityEventCounters: Equatable {
     }
 }
 
+private struct LockedClipboardSnapshot: Codable {
+    let version: Int
+    let lockedAt: Date
+    let items: [LockedClipboardSnapshotItem]
+}
+
+private struct LockedClipboardSnapshotItem: Codable {
+    let id: UUID
+    let type: ClipboardItemType
+    let createdAt: Date
+    let updatedAt: Date
+    let pinnedAt: Date?
+    let expiresAt: Date?
+    let preview: String
+    let searchIndex: String?
+    let thumbnailPNGData: Data?
+    let payload: ClipboardItemPayload?
+    let digest: String
+    let byteSize: Int
+    let origin: ClipboardItemOrigin
+    let captureCount: Int
+    let sourceBundleIdentifier: String?
+}
+
+private struct LockedClipboardEnvelope {
+    let nonce: Data
+    let ciphertext: Data
+    let tag: Data
+}
+
 @MainActor
 final class ClipboardManager: ObservableObject {
     @Published private(set) var items: [ClipboardHistoryItem] = []
@@ -48,7 +78,7 @@ final class ClipboardManager: ObservableObject {
     @Published var activeFilter: ClipboardFilter = .all
     @Published var isMonitoringEnabled = true {
         didSet {
-            captureService.isMonitoringEnabled = isMonitoringEnabled
+            syncCaptureServiceMonitoringState()
         }
     }
     @Published private(set) var securityCounters = SecurityEventCounters()
@@ -60,9 +90,16 @@ final class ClipboardManager: ObservableObject {
 
     private let snippetStore: SnippetStore
     private let captureService: ClipboardCaptureService
+    private let lockSnapshotKeyProvider = KeychainKeyProvider(
+        service: "io.copare.app.lock-snapshot",
+        requiresUserPresence: true
+    )
 
     private var persistTask: Task<Void, Never>?
     private var expirationTimer: Timer?
+    private var unlockedLockSnapshotKey: SymmetricKey?
+    private var lockedSnapshotEnvelope: LockedClipboardEnvelope?
+    private var lockedSnapshotFallbackKey: SymmetricKey?
 
     init(
         settings: SettingsStore,
@@ -89,6 +126,7 @@ final class ClipboardManager: ObservableObject {
             self?.applySettingsChanges()
         }
 
+        syncCaptureServiceMonitoringState()
         captureService.start()
         configureExpirationTimer()
 
@@ -174,10 +212,19 @@ final class ClipboardManager: ObservableObject {
     }
 
     func lock() {
-        guard settings.lockProtectionEnabled else {
+        guard settings.lockProtectionEnabled, !isLocked else {
             return
         }
+
+        guard prepareLockedSnapshot() else {
+            return
+        }
+
+        items = []
+        unlockedLockSnapshotKey = nil
+        EncryptedClipboardPayload.rotateSessionProtectionKey()
         isLocked = true
+        syncCaptureServiceMonitoringState()
     }
 
     func unlock() async {
@@ -203,7 +250,12 @@ final class ClipboardManager: ObservableObject {
             }
 
             if success {
+                guard await restoreAfterUnlock(using: context) else {
+                    return
+                }
+
                 isLocked = false
+                syncCaptureServiceMonitoringState()
                 mutateSecurityCounters { $0.unlockEvents += 1 }
             }
         } catch {
@@ -268,6 +320,10 @@ final class ClipboardManager: ObservableObject {
     func secureWipeEntireHistory() {
         items = []
         persistTask?.cancel()
+        unlockedLockSnapshotKey = nil
+        lockedSnapshotEnvelope = nil
+        lockedSnapshotFallbackKey = nil
+        EncryptedClipboardPayload.rotateSessionProtectionKey()
         mutateSecurityCounters { $0.secureWipes += 1 }
 
         Task {
@@ -278,6 +334,10 @@ final class ClipboardManager: ObservableObject {
     }
 
     func addSnippet(title: String, body: String) {
+        guard !isLocked else {
+            return
+        }
+
         let normalizedBody = body
             .replacingOccurrences(of: "\u{0000}", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -338,6 +398,10 @@ final class ClipboardManager: ObservableObject {
     }
 
     func loadSavedSnippets() async {
+        guard !isLocked else {
+            return
+        }
+
         guard settings.persistHistory else {
             hasSavedSnippetsAvailable = false
             savedSnippetsLoaded = true
@@ -358,6 +422,10 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func handleCapture(_ capture: CapturedClipboardItem) {
+        guard !isLocked else {
+            return
+        }
+
         let now = Date()
         let expirationDate = expirationDate(for: .captured, from: now)
 
@@ -401,9 +469,14 @@ final class ClipboardManager: ObservableObject {
         }
 
         if settings.lockProtectionEnabled {
-            isLocked = true
+            if !isLocked {
+                lock()
+            } else {
+                syncCaptureServiceMonitoringState()
+            }
         } else {
             isLocked = false
+            syncCaptureServiceMonitoringState()
         }
 
         _ = pruneExpiredItems()
@@ -561,5 +634,145 @@ final class ClipboardManager: ObservableObject {
         var counters = securityCounters
         update(&counters)
         securityCounters = counters
+    }
+
+    private func syncCaptureServiceMonitoringState() {
+        captureService.isMonitoringEnabled = isMonitoringEnabled && !isLocked
+    }
+
+    private func prepareLockedSnapshot() -> Bool {
+        guard !items.isEmpty else {
+            lockedSnapshotEnvelope = nil
+            lockedSnapshotFallbackKey = nil
+            return true
+        }
+
+        let snapshot = LockedClipboardSnapshot(
+            version: 1,
+            lockedAt: Date(),
+            items: items.map { item in
+                LockedClipboardSnapshotItem(
+                    id: item.id,
+                    type: item.type,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt,
+                    pinnedAt: item.pinnedAt,
+                    expiresAt: item.expiresAt,
+                    preview: item.preview,
+                    searchIndex: item.searchIndex,
+                    thumbnailPNGData: item.thumbnailPNGData,
+                    payload: item.decryptedPayload(),
+                    digest: item.digest,
+                    byteSize: item.byteSize,
+                    origin: item.origin,
+                    captureCount: item.captureCount,
+                    sourceBundleIdentifier: item.sourceBundleIdentifier
+                )
+            }
+        )
+
+        let encryptionKey: SymmetricKey
+        if let unlockedLockSnapshotKey {
+            encryptionKey = unlockedLockSnapshotKey
+            lockedSnapshotFallbackKey = nil
+        } else {
+            let fallbackKey = SymmetricKey(size: .bits256)
+            encryptionKey = fallbackKey
+            lockedSnapshotFallbackKey = fallbackKey
+        }
+
+        guard let envelope = try? sealLockedSnapshot(snapshot, using: encryptionKey) else {
+            return false
+        }
+
+        lockedSnapshotEnvelope = envelope
+        return true
+    }
+
+    private func sealLockedSnapshot(
+        _ snapshot: LockedClipboardSnapshot,
+        using key: SymmetricKey
+    ) throws -> LockedClipboardEnvelope {
+        let data = try JSONEncoder().encode(snapshot)
+        let sealed = try AES.GCM.seal(data, using: key)
+
+        return LockedClipboardEnvelope(
+            nonce: sealed.nonce.withUnsafeBytes { Data($0) },
+            ciphertext: sealed.ciphertext,
+            tag: sealed.tag
+        )
+    }
+
+    private func restoreAfterUnlock(using context: LAContext) async -> Bool {
+        let fallbackKey = lockedSnapshotFallbackKey
+        let persistentKey: SymmetricKey?
+
+        do {
+            persistentKey = try lockSnapshotKeyProvider.loadOrCreateKey(authenticationContext: context)
+        } catch {
+            if lockedSnapshotEnvelope != nil && fallbackKey == nil {
+                return false
+            }
+            persistentKey = nil
+        }
+
+        if let envelope = lockedSnapshotEnvelope {
+            guard let decryptionKey = fallbackKey ?? persistentKey else {
+                return false
+            }
+
+            guard let restoredItems = try? openLockedSnapshot(envelope, using: decryptionKey) else {
+                return false
+            }
+
+            items = restoredItems
+            sortAndTrim()
+        }
+
+        lockedSnapshotEnvelope = nil
+        lockedSnapshotFallbackKey = nil
+        unlockedLockSnapshotKey = persistentKey
+        return true
+    }
+
+    private func openLockedSnapshot(
+        _ envelope: LockedClipboardEnvelope,
+        using key: SymmetricKey
+    ) throws -> [ClipboardHistoryItem] {
+        let nonce = try AES.GCM.Nonce(data: envelope.nonce)
+        let sealedBox = try AES.GCM.SealedBox(
+            nonce: nonce,
+            ciphertext: envelope.ciphertext,
+            tag: envelope.tag
+        )
+        let decryptedData = try AES.GCM.open(sealedBox, using: key)
+        let snapshot = try JSONDecoder().decode(LockedClipboardSnapshot.self, from: decryptedData)
+
+        return snapshot.items.map { item in
+            let runtimePayload: EncryptedClipboardPayload?
+            if let payload = item.payload {
+                runtimePayload = try? EncryptedClipboardPayload.seal(payload)
+            } else {
+                runtimePayload = nil
+            }
+
+            return ClipboardHistoryItem(
+                id: item.id,
+                type: item.type,
+                createdAt: item.createdAt,
+                updatedAt: item.updatedAt,
+                pinnedAt: item.pinnedAt,
+                expiresAt: item.expiresAt,
+                preview: item.preview,
+                searchIndex: item.searchIndex,
+                thumbnailPNGData: item.thumbnailPNGData,
+                encryptedPayload: runtimePayload,
+                digest: item.digest,
+                byteSize: item.byteSize,
+                origin: item.origin,
+                captureCount: item.captureCount,
+                sourceBundleIdentifier: item.sourceBundleIdentifier
+            )
+        }
     }
 }

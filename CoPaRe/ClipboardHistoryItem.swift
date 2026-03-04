@@ -56,7 +56,33 @@ struct ClipboardItemPayload: Codable, Hashable {
     let imagePNGData: Data?
     let filePaths: [String]?
 
-    var isEmpty: Bool {
+    private enum CodingKeys: String, CodingKey {
+        case plainText
+        case imagePNGData
+        case filePaths
+    }
+
+    nonisolated init(plainText: String?, imagePNGData: Data?, filePaths: [String]?) {
+        self.plainText = plainText
+        self.imagePNGData = imagePNGData
+        self.filePaths = filePaths
+    }
+
+    nonisolated init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        plainText = try container.decodeIfPresent(String.self, forKey: .plainText)
+        imagePNGData = try container.decodeIfPresent(Data.self, forKey: .imagePNGData)
+        filePaths = try container.decodeIfPresent([String].self, forKey: .filePaths)
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(plainText, forKey: .plainText)
+        try container.encodeIfPresent(imagePNGData, forKey: .imagePNGData)
+        try container.encodeIfPresent(filePaths, forKey: .filePaths)
+    }
+
+    nonisolated var isEmpty: Bool {
         plainText == nil && imagePNGData == nil && (filePaths?.isEmpty ?? true)
     }
 }
@@ -76,7 +102,7 @@ struct EncryptedClipboardPayload: Codable, Hashable {
         case tag
     }
 
-    init(version: Int, keyService: String?, nonce: Data, ciphertext: Data, tag: Data) {
+    nonisolated init(version: Int, keyService: String?, nonce: Data, ciphertext: Data, tag: Data) {
         self.version = version
         self.keyService = keyService
         self.nonce = nonce
@@ -84,7 +110,7 @@ struct EncryptedClipboardPayload: Codable, Hashable {
         self.tag = tag
     }
 
-    init(from decoder: Decoder) throws {
+    nonisolated init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         version = try container.decode(Int.self, forKey: .version)
         keyService = try container.decodeIfPresent(String.self, forKey: .keyService)
@@ -93,7 +119,7 @@ struct EncryptedClipboardPayload: Codable, Hashable {
         tag = try container.decode(Data.self, forKey: .tag)
     }
 
-    func encode(to encoder: Encoder) throws {
+    nonisolated func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(version, forKey: .version)
         try container.encodeIfPresent(keyService, forKey: .keyService)
@@ -102,12 +128,16 @@ struct EncryptedClipboardPayload: Codable, Hashable {
         try container.encode(tag, forKey: .tag)
     }
 
-    static func seal(_ payload: ClipboardItemPayload) throws -> EncryptedClipboardPayload {
+    nonisolated static func seal(_ payload: ClipboardItemPayload) throws -> EncryptedClipboardPayload {
         try ClipboardPayloadProtector.sealInSession(payload)
     }
 
-    func open() throws -> ClipboardItemPayload {
+    nonisolated func open() throws -> ClipboardItemPayload {
         try ClipboardPayloadProtector.open(self)
+    }
+
+    nonisolated static func rotateSessionProtectionKey() {
+        ClipboardPayloadProtector.rotateSessionKey()
     }
 }
 
@@ -128,15 +158,15 @@ struct ClipboardHistoryItem: Identifiable, Hashable {
     var captureCount: Int
     let sourceBundleIdentifier: String?
 
-    var isPinned: Bool {
+    nonisolated var isPinned: Bool {
         pinnedAt != nil
     }
 
-    var isSnippet: Bool {
+    nonisolated var isSnippet: Bool {
         origin == .snippet
     }
 
-    init(
+    nonisolated init(
         id: UUID = UUID(),
         type: ClipboardItemType,
         createdAt: Date = Date(),
@@ -170,14 +200,14 @@ struct ClipboardHistoryItem: Identifiable, Hashable {
         self.sourceBundleIdentifier = sourceBundleIdentifier
     }
 
-    func decryptedPayload() -> ClipboardItemPayload? {
+    nonisolated func decryptedPayload() -> ClipboardItemPayload? {
         guard let encryptedPayload else {
             return nil
         }
         return try? encryptedPayload.open()
     }
 
-    static func makeThumbnailPNGData(from imageData: Data?) -> Data? {
+    nonisolated static func makeThumbnailPNGData(from imageData: Data?) -> Data? {
         guard let imageData, let image = NSImage(data: imageData) else {
             return nil
         }
@@ -185,7 +215,7 @@ struct ClipboardHistoryItem: Identifiable, Hashable {
         return image.copareThumbnailPNGData(maxDimension: 96)
     }
 
-    static func makeSearchIndex(for type: ClipboardItemType, preview: String) -> String? {
+    nonisolated static func makeSearchIndex(for type: ClipboardItemType, preview: String) -> String? {
         guard type == .file else {
             return nil
         }
@@ -200,11 +230,12 @@ struct ClipboardHistoryItem: Identifiable, Hashable {
 }
 
 private enum ClipboardPayloadProtector {
-    private nonisolated(unsafe) static let sessionKey = SymmetricKey(size: .bits256)
+    private nonisolated static let sessionKeyLock = NSLock()
+    private nonisolated(unsafe) static var sessionKey = SymmetricKey(size: .bits256)
 
-    static func sealInSession(_ payload: ClipboardItemPayload) throws -> EncryptedClipboardPayload {
+    nonisolated static func sealInSession(_ payload: ClipboardItemPayload) throws -> EncryptedClipboardPayload {
         let data = try JSONEncoder().encode(payload)
-        let sealedBox = try AES.GCM.seal(data, using: sessionKey)
+        let sealedBox = try AES.GCM.seal(data, using: currentSessionKey())
 
         return EncryptedClipboardPayload(
             version: 1,
@@ -215,7 +246,7 @@ private enum ClipboardPayloadProtector {
         )
     }
 
-    static func open(_ encryptedPayload: EncryptedClipboardPayload) throws -> ClipboardItemPayload {
+    nonisolated static func open(_ encryptedPayload: EncryptedClipboardPayload) throws -> ClipboardItemPayload {
         let nonce = try AES.GCM.Nonce(data: encryptedPayload.nonce)
         let sealedBox = try AES.GCM.SealedBox(
             nonce: nonce,
@@ -227,14 +258,26 @@ private enum ClipboardPayloadProtector {
             let key = try KeychainKeyProvider(service: keyService).loadOrCreateKey()
             decryptedData = try AES.GCM.open(sealedBox, using: key)
         } else {
-            decryptedData = try AES.GCM.open(sealedBox, using: sessionKey)
+            decryptedData = try AES.GCM.open(sealedBox, using: currentSessionKey())
         }
         return try JSONDecoder().decode(ClipboardItemPayload.self, from: decryptedData)
+    }
+
+    nonisolated static func rotateSessionKey() {
+        sessionKeyLock.lock()
+        defer { sessionKeyLock.unlock() }
+        sessionKey = SymmetricKey(size: .bits256)
+    }
+
+    private nonisolated static func currentSessionKey() -> SymmetricKey {
+        sessionKeyLock.lock()
+        defer { sessionKeyLock.unlock() }
+        return sessionKey
     }
 }
 
 private extension NSImage {
-    func copareThumbnailPNGData(maxDimension: CGFloat) -> Data? {
+    nonisolated func copareThumbnailPNGData(maxDimension: CGFloat) -> Data? {
         guard size.width > 0, size.height > 0 else {
             return nil
         }

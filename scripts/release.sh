@@ -4,7 +4,7 @@ set -euo pipefail
 APP_NAME="CoPaRe"
 SCHEME="CoPaRe"
 PROJECT_FILE="CoPaRe.xcodeproj"
-CONFIGURATION="Release"
+CONFIGURATION="Distribution"
 VOLUME_NAME="${APP_NAME} Installer"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

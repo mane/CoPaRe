@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import LocalAuthentication
 import Security
 
 enum KeychainKeyProviderError: Error {
@@ -22,7 +23,7 @@ struct KeychainKeyProvider {
         self.requiresUserPresence = requiresUserPresence
     }
 
-    nonisolated func loadOrCreateKey() throws -> SymmetricKey {
+    nonisolated func loadOrCreateKey(authenticationContext: LAContext? = nil) throws -> SymmetricKey {
         Self.cacheLock.lock()
         defer { Self.cacheLock.unlock() }
 
@@ -36,7 +37,10 @@ struct KeychainKeyProvider {
         }
 
         if migrationCompleted {
-            if let existingData = try readKeyData(useDataProtectionKeychain: true) {
+            if let existingData = try readKeyData(
+                useDataProtectionKeychain: true,
+                authenticationContext: authenticationContext
+            ) {
                 guard existingData.count == 32 else {
                     throw KeychainKeyProviderError.invalidKeyData
                 }
@@ -47,12 +51,19 @@ struct KeychainKeyProvider {
                 return SymmetricKey(data: existingData)
             }
         } else {
-            if let legacyData = try readKeyData(useDataProtectionKeychain: false) {
+            if let legacyData = try readKeyData(
+                useDataProtectionKeychain: false,
+                authenticationContext: authenticationContext
+            ) {
                 guard legacyData.count == 32 else {
                     throw KeychainKeyProviderError.invalidKeyData
                 }
 
-                try saveKeyData(legacyData, useDataProtectionKeychain: true)
+                try saveKeyData(
+                    legacyData,
+                    useDataProtectionKeychain: true,
+                    authenticationContext: authenticationContext
+                )
                 markMigrationCompleted()
                 if !requiresUserPresence {
                     Self.cachedKeyDataByService[service] = legacyData
@@ -60,7 +71,10 @@ struct KeychainKeyProvider {
                 return SymmetricKey(data: legacyData)
             }
 
-            if let existingData = try readKeyData(useDataProtectionKeychain: true) {
+            if let existingData = try readKeyData(
+                useDataProtectionKeychain: true,
+                authenticationContext: authenticationContext
+            ) {
                 guard existingData.count == 32 else {
                     throw KeychainKeyProviderError.invalidKeyData
                 }
@@ -75,7 +89,11 @@ struct KeychainKeyProvider {
 
         let newKey = SymmetricKey(size: .bits256)
         let keyData = newKey.withUnsafeBytes { Data($0) }
-        try saveKeyData(keyData, useDataProtectionKeychain: true)
+        try saveKeyData(
+            keyData,
+            useDataProtectionKeychain: true,
+            authenticationContext: authenticationContext
+        )
         markMigrationCompleted()
         if !requiresUserPresence {
             Self.cachedKeyDataByService[service] = keyData
@@ -94,7 +112,7 @@ struct KeychainKeyProvider {
             kSecUseDataProtectionKeychain as String: true,
         ]
         if requiresUserPresence {
-            query[kSecUseOperationPrompt as String] = operationPrompt
+            query[kSecUseAuthenticationContext as String] = authenticationContext()
         }
 
         let status = SecItemDelete(query as CFDictionary)
@@ -118,7 +136,10 @@ struct KeychainKeyProvider {
         UserDefaults.standard.set(true, forKey: migrationDefaultsKey)
     }
 
-    private nonisolated func readKeyData(useDataProtectionKeychain: Bool) throws -> Data? {
+    private nonisolated func readKeyData(
+        useDataProtectionKeychain: Bool,
+        authenticationContext: LAContext?
+    ) throws -> Data? {
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -129,7 +150,7 @@ struct KeychainKeyProvider {
         ]
 
         if requiresUserPresence {
-            query[kSecUseOperationPrompt as String] = operationPrompt
+            query[kSecUseAuthenticationContext as String] = resolvedAuthenticationContext(authenticationContext)
         }
 
         var result: CFTypeRef?
@@ -145,7 +166,11 @@ struct KeychainKeyProvider {
         }
     }
 
-    private nonisolated func saveKeyData(_ data: Data, useDataProtectionKeychain: Bool) throws {
+    private nonisolated func saveKeyData(
+        _ data: Data,
+        useDataProtectionKeychain: Bool,
+        authenticationContext: LAContext?
+    ) throws {
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -165,7 +190,7 @@ struct KeychainKeyProvider {
             }
 
             query[kSecAttrAccessControl as String] = accessControl
-            query[kSecUseOperationPrompt as String] = operationPrompt
+            query[kSecUseAuthenticationContext as String] = resolvedAuthenticationContext(authenticationContext)
         } else {
             query[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         }
@@ -179,7 +204,7 @@ struct KeychainKeyProvider {
                 kSecUseDataProtectionKeychain as String: useDataProtectionKeychain,
             ]
             if requiresUserPresence {
-                updateQuery[kSecUseOperationPrompt as String] = operationPrompt
+                updateQuery[kSecUseAuthenticationContext as String] = resolvedAuthenticationContext(authenticationContext)
             }
             let attributes: [String: Any] = [
                 kSecValueData as String: data,
@@ -191,5 +216,15 @@ struct KeychainKeyProvider {
             query[kSecValueData as String] = nil
             throw KeychainKeyProviderError.keychainFailure(status)
         }
+    }
+
+    private nonisolated func resolvedAuthenticationContext(_ context: LAContext?) -> LAContext {
+        context ?? authenticationContext()
+    }
+
+    private nonisolated func authenticationContext() -> LAContext {
+        let context = LAContext()
+        context.localizedReason = operationPrompt
+        return context
     }
 }

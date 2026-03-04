@@ -17,9 +17,10 @@ struct SettingsView: View {
                     Toggle("Persist saved snippets on disk", isOn: $settings.persistHistory)
                     Toggle("One-time copy for unpinned history items", isOn: $settings.oneTimeCopyEnabled)
                     Toggle("Require unlock to view history", isOn: $settings.lockProtectionEnabled)
+                        .disabled(manager.isLocked)
                     Toggle("Launch at login", isOn: $settings.launchAtLogin)
 
-                    Text("Clipboard captures are always session-only and are deleted when CoPaRe quits. This toggle controls whether manually saved snippets are stored in an encrypted vault and can be loaded on demand after restart. If app lock is enabled, macOS may require system authentication when saving or loading that vault.")
+                    Text("Clipboard captures are always session-only and are deleted when CoPaRe quits. Locking CoPaRe now removes the live history from the normal in-memory view path and pauses capture until you unlock again. This toggle controls whether manually saved snippets are stored in an encrypted vault and can be loaded on demand after restart. If app lock is enabled, macOS may require system authentication when saving or loading that vault.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 

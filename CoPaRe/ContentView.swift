@@ -309,7 +309,7 @@ struct ContentView: View {
                 Text("CoPaRe is locked")
                     .font(.title2.bold())
 
-                Text("Unlock the app to view clipboard history, snippets, and security details.")
+                Text("Unlock the app to restore clipboard history. Capture is paused while CoPaRe is locked.")
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
 

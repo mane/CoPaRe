@@ -27,6 +27,22 @@ struct CoPaReApp: App {
                     updates.checkForUpdates()
                 }
                 .disabled(!updates.canCheckForUpdates)
+
+                if settings.lockProtectionEnabled {
+                    Divider()
+
+                    if manager.isLocked {
+                        Button("Unlock CoPaRe") {
+                            Task {
+                                await manager.unlock()
+                            }
+                        }
+                    } else {
+                        Button("Lock CoPaRe") {
+                            manager.lock()
+                        }
+                    }
+                }
             }
         }
 
