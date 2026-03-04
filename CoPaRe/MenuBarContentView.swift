@@ -3,11 +3,11 @@ import SwiftUI
 
 struct MenuBarContentView: View {
     @EnvironmentObject private var manager: ClipboardManager
-    @Environment(\.openWindow) private var openWindow
+    @EnvironmentObject private var windowCoordinator: WindowCoordinator
 
     var body: some View {
         Button("Open CoPaRe") {
-            openWindow(id: "main")
+            windowCoordinator.openMainWindow(focusSearch: false)
         }
 
         if manager.settings.lockProtectionEnabled {
@@ -41,6 +41,12 @@ struct MenuBarContentView: View {
                 Menu {
                     Button("Copy") {
                         manager.copyToClipboard(item)
+                    }
+
+                    if item.type != .image {
+                        Button("Copy as Plain Text") {
+                            manager.copyAsPlainText(item)
+                        }
                     }
 
                     Button(item.isPinned ? "Unpin" : "Pin") {
@@ -94,6 +100,12 @@ struct MenuBarContentView: View {
 
             Text(item.preview)
                 .lineLimit(1)
+
+            if let sourceAppName = manager.sourceApplicationName(for: item), !item.isSnippet {
+                Text("· \(sourceAppName)")
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
     }
 }

@@ -193,12 +193,30 @@ final class ClipboardManager: ObservableObject {
         return items.first(where: { $0.id == id })
     }
 
+    func sourceApplicationName(for item: ClipboardHistoryItem) -> String? {
+        SourceApplicationResolver.displayName(for: item.sourceBundleIdentifier)
+    }
+
     func copyToClipboard(_ item: ClipboardHistoryItem) {
         guard !isLocked else {
             return
         }
 
         guard captureService.writeToPasteboard(item: item) else {
+            return
+        }
+
+        if settings.oneTimeCopyEnabled, !item.isPinned, !item.isSnippet {
+            remove(itemID: item.id, immediatelyPersist: true)
+        }
+    }
+
+    func copyAsPlainText(_ item: ClipboardHistoryItem) {
+        guard !isLocked else {
+            return
+        }
+
+        guard captureService.writePlainTextToPasteboard(item: item) else {
             return
         }
 

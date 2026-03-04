@@ -149,7 +149,7 @@ struct ClipboardHistoryItem: Identifiable, Hashable {
     var pinnedAt: Date?
     var expiresAt: Date?
     let preview: String
-    let searchIndex: String?
+    var searchIndex: String?
     let thumbnailPNGData: Data?
     let encryptedPayload: EncryptedClipboardPayload?
     let digest: String

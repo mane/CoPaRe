@@ -4,7 +4,9 @@ import SwiftUI
 struct ClipboardRowView: View {
     let item: ClipboardHistoryItem
     let isSelected: Bool
+    let sourceAppName: String?
     let onCopy: () -> Void
+    let onCopyPlainText: (() -> Void)?
     let onTogglePin: () -> Void
     let onDelete: () -> Void
 
@@ -45,6 +47,11 @@ struct ClipboardRowView: View {
                     Text(item.updatedAt, style: .time)
                     Text(ByteCountFormatter.string(fromByteCount: Int64(item.byteSize), countStyle: .file))
 
+                    if let sourceAppName, !item.isSnippet {
+                        Label(sourceAppName, systemImage: "app")
+                            .labelStyle(.titleAndIcon)
+                    }
+
                     if item.isPinned {
                         Image(systemName: "pin.fill")
                             .foregroundStyle(.orange)
@@ -82,6 +89,9 @@ struct ClipboardRowView: View {
         }
         .contextMenu {
             Button("Copy") { onCopy() }
+            if let onCopyPlainText {
+                Button("Copy as Plain Text") { onCopyPlainText() }
+            }
             Button(item.isPinned ? "Unpin" : "Pin") { onTogglePin() }
             Divider()
             Button("Secure delete", role: .destructive) { onDelete() }

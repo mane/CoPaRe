@@ -50,17 +50,21 @@ xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS
 
 - Clipboard history for text, URLs, images, files, and folders
 - Manual snippets with optional encrypted local persistence
+- Global launcher shortcut (`⌥⌘V`) with instant search focus
 - On-demand loading of the saved-snippets vault (`Load Saved Snippets`)
 - Duplicate collapse with capture counters for repeated copies
 - Fast search across visible previews and minimal local file labels
+- Optional OCR indexing for image clipboard entries
 - Filters for `All`, `Pinned`, `Text`, `Images`, and `Files`
 - Pin/unpin important entries
+- Source-application label for each captured entry
 - Per-app capture exclusions using bundle identifiers
 - Entry time-to-live controls for captured, unpinned history items
 - Optional one-time copy for unpinned history items
 - Optional local lock/unlock gate that removes the active history from the normal in-memory view path, pauses capture while locked, and uses local authentication to restore it
 - `userPresence` protection for the saved-snippets vault when app lock is enabled
 - One-click re-copy for every entry
+- `Copy as Plain Text` for text, URL, and file entries
 - Sparkle-based updates with background checks at launch
 - Signed appcast feed plus EdDSA-signed update archives
 - Sparkle installer flow with one-click verified update prompts
@@ -194,11 +198,15 @@ Notes:
 
 Typical outputs:
 
-- `release/CoPaRe-v1.2.1.zip`
+- `release/CoPaRe-vX.Y.Z.zip`
 - `release/CoPaRe4-3.delta` (when Sparkle can generate a delta from the previous build)
 - `release/appcast.xml`
-- `dist/CoPaRe-v1.2.1.dmg`
-- `dist/CoPaRe-v1.2.1.dmg.sha256`
+- `dist/CoPaRe-vX.Y.Z.dmg`
+- `dist/CoPaRe-vX.Y.Z.dmg.sha256`
+
+## Changelog
+
+- See [CHANGELOG.md](CHANGELOG.md) for version-by-version release notes.
 
 ## Configuration reference
 

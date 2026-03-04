@@ -1,8 +1,19 @@
-<?xml version="1.0" standalone="yes"?><!-- sparkle-sign-warning:
+<?xml version="1.0" standalone="yes"?>
+<!-- sparkle-sign-warning:
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
---><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+-->
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>CoPaRe</title>
+        <item>
+            <title>1.3.0</title>
+            <pubDate>Wed, 04 Mar 2026 21:55:10 +0100</pubDate>
+            <sparkle:version>5</sparkle:version>
+            <sparkle:shortVersionString>1.3.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/mane/CoPaRe/releases/latest/download/CoPaRe-v1.3.0.zip" length="5341567" type="application/octet-stream" sparkle:edSignature="/2St2JQMkump6+Xnk7cbf6HSCJqWV1ZnCuAiuCuh+INs21MfGGK+Ua9+pJ7Kyr7ek/h6TTQuVfLXwYyF+5n5CQ=="/>
+        </item>
         <item>
             <title>1.2.1</title>
             <pubDate>Wed, 04 Mar 2026 19:05:34 +0100</pubDate>
@@ -10,10 +21,11 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
             <sparkle:shortVersionString>1.2.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/mane/CoPaRe/releases/latest/download/CoPaRe-v1.2.1.zip" length="5281482" type="application/octet-stream" sparkle:edSignature="ZXJ4ZvQ+zgNdx1vgCKJUOeCaIsZQm7oCm9Lxnyn6F5c5j7IKQPY+ZPrXSOdNWmNkLMp/TcV/z0IWBZF2M5MuAw=="></enclosure>
+            <enclosure url="https://github.com/mane/CoPaRe/releases/latest/download/CoPaRe-v1.2.1.zip" length="5281482" type="application/octet-stream" sparkle:edSignature="ZXJ4ZvQ+zgNdx1vgCKJUOeCaIsZQm7oCm9Lxnyn6F5c5j7IKQPY+ZPrXSOdNWmNkLMp/TcV/z0IWBZF2M5MuAw=="/>
         </item>
     </channel>
-</rss><!-- sparkle-signatures:
-edSignature: txgKJTJpNhJNFK73jSYbwihn7l2psWaJtw6OnOtP5oYNhY0xc5IfeUC1rXGSlo3ZcXJE0kyT9MDrwGTtCqy+Aw==
-length: 1111
+</rss>
+<!-- sparkle-signatures:
+edSignature: 3ImkGZuBSTewQVzluxCRr3+vSjCXSL9LupWHBX5P3XOdCkwRiUwGGH1nbj+4EF+5JOYpM6awY8uV+4TXblKWDg==
+length: 1776
 -->

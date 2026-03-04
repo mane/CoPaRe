@@ -13,11 +13,28 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 sectionCard(title: "Security") {
+                    Picker(
+                        "Preset",
+                        selection: Binding(
+                            get: { settings.securityPreset },
+                            set: { settings.applySecurityPreset($0) }
+                        )
+                    ) {
+                        ForEach(SecurityPreset.allCases) { preset in
+                            Text(preset.label).tag(preset)
+                        }
+                    }
+
+                    Text(settings.securityPreset.summary)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
                     Toggle("Filter potentially sensitive content", isOn: $settings.filterSensitiveContent)
                     Toggle("Persist saved snippets on disk", isOn: $settings.persistHistory)
                     Toggle("One-time copy for unpinned history items", isOn: $settings.oneTimeCopyEnabled)
                     Toggle("Require unlock to view history", isOn: $settings.lockProtectionEnabled)
                         .disabled(manager.isLocked)
+                    Toggle("Enable global shortcut (\(GlobalHotKeyService.shortcutDisplayName))", isOn: $settings.globalShortcutEnabled)
                     Toggle("Launch at login", isOn: $settings.launchAtLogin)
 
                     Text("Clipboard captures are always session-only and are deleted when CoPaRe quits. Locking CoPaRe now removes the live history from the normal in-memory view path and pauses capture until you unlock again. This toggle controls whether manually saved snippets are stored in an encrypted vault and can be loaded on demand after restart. If app lock is enabled, macOS may require system authentication when saving or loading that vault.")
@@ -34,6 +51,8 @@ struct SettingsView: View {
                 sectionCard(title: "Capture") {
                     Toggle("Capture images", isOn: $settings.captureImages)
                     Toggle("Capture copied files/folders", isOn: $settings.captureFiles)
+                    Toggle("OCR text indexing for images", isOn: $settings.imageOCRIndexingEnabled)
+                        .disabled(!settings.captureImages)
 
                     HStack {
                         Text("Polling interval")

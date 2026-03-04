@@ -48,6 +48,31 @@ enum ClipboardItemTTL: String, CaseIterable, Identifiable {
     }
 }
 
+enum SecurityPreset: String, CaseIterable, Identifiable {
+    case balanced
+    case strict
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .balanced:
+            return "Balanced"
+        case .strict:
+            return "Strict"
+        }
+    }
+
+    var summary: String {
+        switch self {
+        case .balanced:
+            return "Keeps full clipboard features with sensitive-content filtering enabled."
+        case .strict:
+            return "Minimizes retention and capture surface for high-security environments."
+        }
+    }
+}
+
 @MainActor
 final class SettingsStore: ObservableObject {
     private enum Keys {
@@ -62,10 +87,15 @@ final class SettingsStore: ObservableObject {
         static let itemTTL = "itemTTL"
         static let oneTimeCopyEnabled = "oneTimeCopyEnabled"
         static let lockProtectionEnabled = "lockProtectionEnabled"
+        static let imageOCRIndexingEnabled = "imageOCRIndexingEnabled"
+        static let globalShortcutEnabled = "globalShortcutEnabled"
+        static let securityPreset = "securityPreset"
+        static let onboardingCompleted = "onboardingCompleted"
     }
 
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: "io.copare.app", category: "settings")
+    private var isApplyingPreset = false
 
     private static let defaultExcludedApps = [
         "com.1password.1password",
@@ -141,7 +171,9 @@ final class SettingsStore: ObservableObject {
                 return
             }
             defaults.set(itemTTL.rawValue, forKey: Keys.itemTTL)
-            onChange?()
+            if !isApplyingPreset {
+                onChange?()
+            }
         }
     }
 
@@ -154,6 +186,37 @@ final class SettingsStore: ObservableObject {
     @Published var lockProtectionEnabled: Bool {
         didSet {
             persist(lockProtectionEnabled, key: Keys.lockProtectionEnabled, oldValue: oldValue)
+        }
+    }
+
+    @Published var imageOCRIndexingEnabled: Bool {
+        didSet {
+            persist(imageOCRIndexingEnabled, key: Keys.imageOCRIndexingEnabled, oldValue: oldValue)
+        }
+    }
+
+    @Published var globalShortcutEnabled: Bool {
+        didSet {
+            persist(globalShortcutEnabled, key: Keys.globalShortcutEnabled, oldValue: oldValue)
+        }
+    }
+
+    @Published var securityPreset: SecurityPreset {
+        didSet {
+            guard securityPreset != oldValue else {
+                return
+            }
+
+            defaults.set(securityPreset.rawValue, forKey: Keys.securityPreset)
+            if !isApplyingPreset {
+                onChange?()
+            }
+        }
+    }
+
+    @Published var onboardingCompleted: Bool {
+        didSet {
+            persist(onboardingCompleted, key: Keys.onboardingCompleted, oldValue: oldValue)
         }
     }
 
@@ -179,6 +242,10 @@ final class SettingsStore: ObservableObject {
         itemTTL = ClipboardItemTTL(rawValue: defaults.string(forKey: Keys.itemTTL) ?? "") ?? .never
         oneTimeCopyEnabled = defaults.object(forKey: Keys.oneTimeCopyEnabled) as? Bool ?? false
         lockProtectionEnabled = defaults.object(forKey: Keys.lockProtectionEnabled) as? Bool ?? false
+        imageOCRIndexingEnabled = defaults.object(forKey: Keys.imageOCRIndexingEnabled) as? Bool ?? false
+        globalShortcutEnabled = defaults.object(forKey: Keys.globalShortcutEnabled) as? Bool ?? true
+        securityPreset = SecurityPreset(rawValue: defaults.string(forKey: Keys.securityPreset) ?? "") ?? .balanced
+        onboardingCompleted = defaults.object(forKey: Keys.onboardingCompleted) as? Bool ?? false
 
         if #available(macOS 13.0, *) {
             let status = SMAppService.mainApp.status
@@ -198,7 +265,9 @@ final class SettingsStore: ObservableObject {
         }
 
         defaults.set(value, forKey: key)
-        onChange?()
+        if !isApplyingPreset {
+            onChange?()
+        }
     }
 
     private func updateLaunchAtLogin(_ enabled: Bool) {
@@ -235,6 +304,40 @@ final class SettingsStore: ObservableObject {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
                 .filter { !$0.isEmpty }
         )
+    }
+
+    func applySecurityPreset(_ preset: SecurityPreset, markOnboardingCompleted: Bool = false) {
+        isApplyingPreset = true
+        defer {
+            isApplyingPreset = false
+            onChange?()
+        }
+
+        securityPreset = preset
+        switch preset {
+        case .balanced:
+            filterSensitiveContent = true
+            persistHistory = true
+            captureImages = true
+            captureFiles = true
+            imageOCRIndexingEnabled = true
+            oneTimeCopyEnabled = false
+            lockProtectionEnabled = false
+            itemTTL = .never
+        case .strict:
+            filterSensitiveContent = true
+            persistHistory = true
+            captureImages = false
+            captureFiles = false
+            imageOCRIndexingEnabled = false
+            oneTimeCopyEnabled = true
+            lockProtectionEnabled = true
+            itemTTL = .fiveMinutes
+        }
+
+        if markOnboardingCompleted {
+            onboardingCompleted = true
+        }
     }
 }
 

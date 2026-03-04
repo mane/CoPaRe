@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var selectedPayloadItemID: UUID?
     @State private var selectedPayloadRefreshID = UUID()
     @State private var isShowingSnippetComposer = false
+    @State private var isShowingSecurityOnboarding = false
     @State private var snippetTitle = ""
     @State private var snippetBody = ""
     @FocusState private var searchFieldFocused: Bool
@@ -98,9 +99,14 @@ struct ContentView: View {
         .sheet(isPresented: $isShowingSnippetComposer) {
             snippetComposer
         }
+        .sheet(isPresented: $isShowingSecurityOnboarding) {
+            SecurityOnboardingView()
+                .environmentObject(settings)
+        }
         .onAppear {
             selectedItemID = manager.filteredItems.first?.id
             clearSelectedPayload()
+            isShowingSecurityOnboarding = !settings.onboardingCompleted
         }
         .onChange(of: manager.filteredItems.map(\.id)) { _, ids in
             guard !ids.isEmpty else {
@@ -129,6 +135,17 @@ struct ContentView: View {
                 return
             }
             selectedItemID = manager.filteredItems.first?.id ?? selectedItemID
+        }
+        .onChange(of: settings.onboardingCompleted) { _, completed in
+            if completed {
+                isShowingSecurityOnboarding = false
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .copareFocusSearchRequested)) { _ in
+            guard !manager.isLocked else {
+                return
+            }
+            searchFieldFocused = true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in
             clearSelectedPayload()
@@ -245,7 +262,9 @@ struct ContentView: View {
                             ClipboardRowView(
                                 item: item,
                                 isSelected: selectedItemID == item.id,
+                                sourceAppName: manager.sourceApplicationName(for: item),
                                 onCopy: { manager.copyToClipboard(item) },
+                                onCopyPlainText: supportsPlainTextCopy(for: item) ? { manager.copyAsPlainText(item) } : nil,
                                 onTogglePin: { manager.togglePin(itemID: item.id) },
                                 onDelete: { manager.remove(itemID: item.id) }
                             )
@@ -345,6 +364,12 @@ struct ContentView: View {
                                 Text(item.isSnippet ? item.origin.label : item.type.label)
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
+
+                                if let sourceAppName = manager.sourceApplicationName(for: item), !item.isSnippet {
+                                    Label(sourceAppName, systemImage: "app")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
 
                             Spacer()
@@ -380,6 +405,15 @@ struct ContentView: View {
                                 Label("Copy Again", systemImage: "doc.on.doc")
                             }
                             .buttonStyle(.borderedProminent)
+
+                            if supportsPlainTextCopy(for: item) {
+                                Button {
+                                    manager.copyAsPlainText(item)
+                                } label: {
+                                    Label("Copy as Plain Text", systemImage: "text.cursor")
+                                }
+                                .buttonStyle(.bordered)
+                            }
 
                             Button(item.isPinned ? "Unpin" : "Pin") {
                                 manager.togglePin(itemID: item.id)
@@ -593,5 +627,9 @@ struct ContentView: View {
         snippetTitle = ""
         snippetBody = ""
         isShowingSnippetComposer = false
+    }
+
+    private func supportsPlainTextCopy(for item: ClipboardHistoryItem) -> Bool {
+        item.type != .image
     }
 }
