@@ -2,6 +2,7 @@ import Combine
 import Foundation
 import OSLog
 import Sparkle
+import AppIntents
 
 @MainActor
 final class AppUpdateChecker: NSObject, ObservableObject {
