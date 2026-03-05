@@ -79,11 +79,13 @@ Build (standard GitHub/DMG flavor):
 xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS' build
 ```
 
-Build (App Store flavor, separate configuration):
+Build (App Store flavor, dedicated target/scheme):
 
 ```bash
-xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -configuration AppStore -destination 'platform=macOS' build
+xcodebuild -project CoPaRe.xcodeproj -scheme CoPaReAppStore -configuration AppStore -destination 'platform=macOS' build
 ```
+
+This build path uses the `CoPaReAppStore` target and excludes Sparkle updater binaries.
 
 Test (standard flavor):
 

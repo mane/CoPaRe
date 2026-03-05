@@ -11,7 +11,7 @@ The format is inspired by Keep a Changelog and this project follows Semantic Ver
 - Masked likely secret/token-like captures in item previews to reduce accidental plaintext exposure in memory/UI.
 - Reduced plaintext indexing scope for copied text/URL entries by keeping search terms limited to app-source metadata.
 - Improved secure wipe UX with explicit confirmation and clear post-action status messaging.
-- Added a dedicated `AppStore` Xcode build configuration with separate entitlements/Info.plist and App Store update behavior (no in-app Sparkle updater UI).
+- Added a dedicated `CoPaReAppStore` target/scheme plus `AppStore` configuration with separate entitlements/Info.plist and App Store update behavior (no in-app Sparkle updater UI, no Sparkle framework linkage in that build).
 
 ### Security
 
