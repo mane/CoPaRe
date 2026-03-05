@@ -4,6 +4,7 @@ import Foundation
 
 extension Notification.Name {
     static let copareFocusSearchRequested = Notification.Name("io.copare.app.focusSearchRequested")
+    static let copareOpenOnboardingRequested = Notification.Name("io.copare.app.openOnboardingRequested")
 }
 
 @MainActor

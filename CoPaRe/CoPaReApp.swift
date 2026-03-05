@@ -34,6 +34,11 @@ struct CoPaReApp: App {
                 }
                 .keyboardShortcut("v", modifiers: [.command, .option])
 
+                Button("Interactive How To…") {
+                    windowCoordinator.openMainWindow(focusSearch: false)
+                    NotificationCenter.default.post(name: .copareOpenOnboardingRequested, object: nil)
+                }
+
                 Divider()
 
                 if updates.supportsInAppUpdates {

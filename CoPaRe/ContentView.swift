@@ -13,8 +13,10 @@ struct ContentView: View {
     @State private var snippetTitle = ""
     @State private var snippetBody = ""
     @FocusState private var searchFieldFocused: Bool
+    @AppStorage("onboardingTourVersion") private var onboardingTourVersion = 0
 
     private let selectedPayloadRetentionSeconds = 30.0
+    private let currentOnboardingTourVersion = 4
 
     private var selectedItem: ClipboardHistoryItem? {
         manager.item(with: selectedItemID)
@@ -104,6 +106,10 @@ struct ContentView: View {
                 .environmentObject(settings)
         }
         .onAppear {
+            if onboardingTourVersion < currentOnboardingTourVersion {
+                settings.onboardingCompleted = false
+                onboardingTourVersion = currentOnboardingTourVersion
+            }
             selectedItemID = manager.filteredItems.first?.id
             clearSelectedPayload()
             isShowingSecurityOnboarding = !settings.onboardingCompleted
@@ -146,6 +152,9 @@ struct ContentView: View {
                 return
             }
             searchFieldFocused = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .copareOpenOnboardingRequested)) { _ in
+            isShowingSecurityOnboarding = true
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in
             clearSelectedPayload()
