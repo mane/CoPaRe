@@ -111,21 +111,38 @@ struct KeychainKeyProvider {
         Self.cacheLock.lock()
         defer { Self.cacheLock.unlock() }
 
-        var query: [String: Any] = [
+        let baseQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
             kSecUseDataProtectionKeychain as String: true,
         ]
-        if requiresUserPresence {
-            query[kSecUseAuthenticationContext as String] = authenticationContext()
+
+        let directDeleteStatus = SecItemDelete(baseQuery as CFDictionary)
+        if directDeleteStatus == errSecSuccess || directDeleteStatus == errSecItemNotFound {
+            clearCacheAndMarkMigration()
+            return
         }
 
-        let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw KeychainKeyProviderError.keychainFailure(status)
+        if requiresUserPresence &&
+            (directDeleteStatus == errSecInteractionNotAllowed || directDeleteStatus == errSecAuthFailed)
+        {
+            var authQuery = baseQuery
+            authQuery[kSecUseAuthenticationContext as String] = authenticationContext()
+
+            let authenticatedDeleteStatus = SecItemDelete(authQuery as CFDictionary)
+            guard authenticatedDeleteStatus == errSecSuccess || authenticatedDeleteStatus == errSecItemNotFound else {
+                throw KeychainKeyProviderError.keychainFailure(authenticatedDeleteStatus)
+            }
+
+            clearCacheAndMarkMigration()
+            return
         }
 
+        throw KeychainKeyProviderError.keychainFailure(directDeleteStatus)
+    }
+
+    private nonisolated func clearCacheAndMarkMigration() {
         markMigrationCompleted()
         Self.cachedKeyDataByService[service] = nil
     }

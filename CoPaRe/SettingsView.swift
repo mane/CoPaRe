@@ -4,6 +4,7 @@ struct SettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var manager: ClipboardManager
     @EnvironmentObject private var updates: AppUpdateChecker
+    @State private var isShowingSecureWipeConfirmation = false
 
     private var panelColor: Color {
         Color(nsColor: NSColor.controlBackgroundColor)
@@ -129,15 +130,29 @@ struct SettingsView: View {
 
                 sectionCard(title: "Danger Zone") {
                     Button("Secure wipe entire history", role: .destructive) {
-                        manager.secureWipeEntireHistory()
+                        isShowingSecureWipeConfirmation = true
                     }
                     .buttonStyle(.bordered)
+
+                    if let secureWipeMessage = manager.secureWipeMessage {
+                        Text(secureWipeMessage)
+                            .font(.footnote)
+                            .foregroundStyle(manager.secureWipeFailed ? .red : .secondary)
+                    }
                 }
             }
             .padding(16)
         }
         .frame(width: 620, height: 760)
         .background(Color(nsColor: NSColor.windowBackgroundColor))
+        .alert("Secure wipe entire history?", isPresented: $isShowingSecureWipeConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Secure Wipe", role: .destructive) {
+                manager.secureWipeEntireHistory()
+            }
+        } message: {
+            Text("This removes clipboard history and deletes snippet-vault keys (crypto-shredding). If app lock is enabled, macOS may request system authentication to remove protected keys.")
+        }
     }
 
     @ViewBuilder

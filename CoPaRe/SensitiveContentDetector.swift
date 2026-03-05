@@ -4,11 +4,14 @@ enum SensitiveContentDetector {
     private static let keywords = [
         "password",
         "passwd",
+        "passphrase",
         "otp",
         "2fa",
         "totp",
         "api key",
         "secret",
+        "client_secret",
+        "refresh_token",
         "private key",
         "bearer ",
         "session token",
@@ -95,14 +98,21 @@ enum SensitiveContentDetector {
         }
 
         if normalized.range(
-            of: #"^eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$"#,
+            of: #"(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])"#,
             options: .regularExpression
         ) != nil {
             return true
         }
 
         if normalized.range(
-            of: #"(?i)(sk_live|ghp_|xox[baprs]-|AKIA)[A-Za-z0-9_\-]{10,}"#,
+            of: #"(?i)(sk_live|ghp_|gho_|ghu_|github_pat_|xox[baprs]-|xoxe-|AKIA|ASIA|A3T|AGPA|AIDA|AROA|AIPA|ANPA|ANVA)[A-Za-z0-9_\-]{10,}"#,
+            options: .regularExpression
+        ) != nil {
+            return true
+        }
+
+        if normalized.range(
+            of: #"(?<![A-Za-z0-9])([MN][A-Za-z0-9]{23}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,})(?![A-Za-z0-9])"#,
             options: .regularExpression
         ) != nil {
             return true
@@ -110,6 +120,13 @@ enum SensitiveContentDetector {
 
         if normalized.range(
             of: #"(?i)-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----"#,
+            options: .regularExpression
+        ) != nil {
+            return true
+        }
+
+        if normalized.range(
+            of: #"(?i)-----BEGIN PGP PRIVATE KEY BLOCK-----"#,
             options: .regularExpression
         ) != nil {
             return true
@@ -129,26 +146,73 @@ enum SensitiveContentDetector {
         return false
     }
 
+    static func shouldMaskPreview(text: String) -> Bool {
+        let normalized = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .condensingWhitespace()
+
+        guard !normalized.isEmpty else {
+            return false
+        }
+
+        if shouldBlock(text: normalized) {
+            return true
+        }
+
+        if normalized.contains("://") {
+            return false
+        }
+
+        if normalized.contains(" ") {
+            return false
+        }
+
+        if normalized.count >= 24,
+           normalized.range(of: #"^[A-Za-z0-9+/_=\-]{24,}$"#, options: .regularExpression) != nil
+        {
+            return true
+        }
+
+        let entropy = shannonEntropy(of: normalized)
+        if normalized.count >= 16 && entropy >= 3.7 {
+            return true
+        }
+
+        let classes = characterClassCount(in: normalized)
+        if normalized.count >= 14 && classes >= 3 {
+            return true
+        }
+
+        return false
+    }
+
     static func shouldBlock(filePath: String) -> Bool {
         let normalized = filePath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else {
             return false
         }
 
-        let lowercased = normalized.lowercased()
-        let url = URL(fileURLWithPath: normalized)
-        let fileExtension = url.pathExtension.lowercased()
-        let fileName = url.lastPathComponent.lowercased()
+        let originalURL = URL(fileURLWithPath: normalized).standardizedFileURL
+        let resolvedURL = originalURL.resolvingSymlinksInPath().standardizedFileURL
+        let urlsToCheck = [originalURL, resolvedURL]
+        let pathsToCheck = urlsToCheck.map { $0.path.lowercased() }
 
-        if blockedFileExtensions.contains(fileExtension) {
-            return true
+        for url in urlsToCheck {
+            let fileExtension = url.pathExtension.lowercased()
+            let fileName = url.lastPathComponent.lowercased()
+
+            if blockedFileExtensions.contains(fileExtension) {
+                return true
+            }
+
+            if blockedFileNames.contains(fileName) || fileName.hasPrefix(".env.") {
+                return true
+            }
         }
 
-        if blockedFileNames.contains(fileName) || fileName.hasPrefix(".env.") {
-            return true
-        }
-
-        if blockedPathHints.contains(where: lowercased.contains) {
+        if blockedPathHints.contains(where: { hint in
+            pathsToCheck.contains(where: { $0.contains(hint) })
+        }) {
             return true
         }
 
@@ -168,5 +232,43 @@ enum SensitiveContentDetector {
             let lowercased = type.lowercased()
             return protectedPasteboardHints.contains(where: lowercased.contains)
         }
+    }
+
+    private static func characterClassCount(in value: String) -> Int {
+        var count = 0
+        if value.rangeOfCharacter(from: .lowercaseLetters) != nil {
+            count += 1
+        }
+        if value.rangeOfCharacter(from: .uppercaseLetters) != nil {
+            count += 1
+        }
+        if value.rangeOfCharacter(from: .decimalDigits) != nil {
+            count += 1
+        }
+
+        let symbolSet = CharacterSet.alphanumerics.inverted
+        if value.rangeOfCharacter(from: symbolSet) != nil {
+            count += 1
+        }
+        return count
+    }
+
+    private static func shannonEntropy(of value: String) -> Double {
+        guard !value.isEmpty else {
+            return 0
+        }
+
+        var frequencies: [Character: Double] = [:]
+        for character in value {
+            frequencies[character, default: 0] += 1
+        }
+
+        let length = Double(value.count)
+        var entropy = 0.0
+        for frequency in frequencies.values {
+            let probability = frequency / length
+            entropy -= probability * log2(probability)
+        }
+        return entropy
     }
 }

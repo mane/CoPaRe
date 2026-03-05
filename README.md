@@ -54,6 +54,7 @@ xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS
 - On-demand loading of the saved-snippets vault (`Load Saved Snippets`)
 - Duplicate collapse with capture counters for repeated copies
 - Fast search across visible previews and minimal local file labels
+- Automatic preview masking for likely secret text/token captures
 - Optional OCR scanning of copied images to block likely sensitive text
 - Filters for `All`, `Pinned`, `Text`, `Images`, and `Files`
 - Pin/unpin important entries
@@ -87,10 +88,10 @@ CoPaRe uses practical hardening appropriate for a local clipboard manager:
 - Runtime payloads are wrapped with an in-memory session key and revealed on demand for re-copy or focused detail view
 - Locking CoPaRe temporarily removes the live history from the normal in-memory path, encrypts a short-lived lock snapshot, and pauses clipboard capture until unlock
 - Optional snippet persistence stores only user-authored snippets in an encrypted vault stored in the app support container with restrictive local file permissions
-- Search avoids indexing full text bodies in RAM; only visible previews and minimal file labels remain searchable
+- Search avoids indexing full text bodies in RAM; only visible previews and minimal file labels remain searchable, and likely secrets are auto-masked in previews
 - Protected pasteboard-type detection for concealed/password-manager clipboard content
 - Re-copied text is marked with concealed/auto-generated pasteboard types to discourage capture by other well-behaved clipboard tools
-- Sensitive file-path filtering for likely secret material (for example `.key`, `.pem`, `.ovpn`, `.env*`, `.npmrc`, `.netrc`, `.ssh`, `.gnupg`, `~/.aws/credentials`, `~/.kube/config`)
+- Sensitive file-path filtering for likely secret material (for example `.key`, `.pem`, `.ovpn`, `.env*`, `.npmrc`, `.netrc`, `.ssh`, `.gnupg`, `~/.aws/credentials`, `~/.kube/config`), including symlink-resolved targets
 - Frontmost app exclusion rules prevent capture from configured bundle identifiers
 - Focused detail payload cleared when the app resigns active and after a short timeout
 - No automatic Keychain access in the normal application launch path; Keychain is touched only when saving or explicitly loading the encrypted snippets vault
@@ -233,6 +234,7 @@ Typical outputs:
 - Captured clipboard history is always memory-only and is not restored after relaunch.
 - Secure delete of individual entries removes them from the current session immediately.
 - "Secure wipe entire history" removes all items, deletes the encrypted snippets vault file if present, and destroys the snippet encryption keys (crypto-shredding).
+- Secure wipe shows a warning if one or more protected Keychain keys cannot be removed (for example if authentication is canceled).
 - Security event counters are local-only and track blocked sensitive captures, excluded-app skips, expired entries, secure wipes, and unlock events.
 
 ## Repository layout

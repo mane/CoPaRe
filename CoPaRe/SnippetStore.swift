@@ -122,20 +122,21 @@ actor SnippetStore {
         }
     }
 
-    func clearSnippetsFile() {
+    @discardableResult
+    func clearSnippetsFile() -> Bool {
+        var succeeded = true
+
         do {
-            defer {
-                deleteAllSnippetKeys()
+            if fileManager.fileExists(atPath: fileURL.path) {
+                try fileManager.removeItem(at: fileURL)
             }
-
-            guard fileManager.fileExists(atPath: fileURL.path) else {
-                return
-            }
-
-            try fileManager.removeItem(at: fileURL)
         } catch {
             logger.error("Failed to clear snippets file: \(error.localizedDescription, privacy: .public)")
+            succeeded = false
         }
+
+        let keysDeleted = deleteAllSnippetKeys()
+        return succeeded && keysDeleted
     }
 
     private func makeHistoryItem(from snippet: PersistedSnippet) -> ClipboardHistoryItem? {
@@ -220,16 +221,19 @@ actor SnippetStore {
         )
     }
 
-    private func deleteAllSnippetKeys() {
-        deleteSnippetKeyIfPresent(service: Self.snippetKeyService)
-        deleteSnippetKeyIfPresent(service: Self.protectedSnippetKeyService)
+    private func deleteAllSnippetKeys() -> Bool {
+        let regularDeleted = deleteSnippetKeyIfPresent(service: Self.snippetKeyService)
+        let protectedDeleted = deleteSnippetKeyIfPresent(service: Self.protectedSnippetKeyService)
+        return regularDeleted && protectedDeleted
     }
 
-    private func deleteSnippetKeyIfPresent(service: String) {
+    private func deleteSnippetKeyIfPresent(service: String) -> Bool {
         do {
             try keyProvider(for: service).deleteKey()
+            return true
         } catch {
             logger.error("Failed to delete snippet encryption key for \(service, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 }

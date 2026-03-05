@@ -86,6 +86,8 @@ final class ClipboardManager: ObservableObject {
     @Published private(set) var isLocked: Bool
     @Published private(set) var hasSavedSnippetsAvailable = false
     @Published private(set) var savedSnippetsLoaded = true
+    @Published private(set) var secureWipeMessage: String?
+    @Published private(set) var secureWipeFailed = false
 
     let settings: SettingsStore
 
@@ -342,9 +344,22 @@ final class ClipboardManager: ObservableObject {
         lockedSnapshotEnvelope = nil
         EncryptedClipboardPayload.rotateSessionProtectionKey()
         mutateSecurityCounters { $0.secureWipes += 1 }
+        secureWipeMessage = nil
+        secureWipeFailed = false
 
-        Task {
-            await snippetStore.clearSnippetsFile()
+        Task { @MainActor [weak self] in
+            guard let self else {
+                return
+            }
+
+            let wipeSucceeded = await snippetStore.clearSnippetsFile()
+            if wipeSucceeded {
+                secureWipeMessage = "Secure wipe completed. History and vault keys were removed."
+                secureWipeFailed = false
+            } else {
+                secureWipeMessage = "Secure wipe completed with warnings. At least one vault key could not be removed (authentication may have been canceled). Run wipe again and approve the macOS prompt."
+                secureWipeFailed = true
+            }
         }
         hasSavedSnippetsAvailable = false
         savedSnippetsLoaded = true
@@ -367,7 +382,16 @@ final class ClipboardManager: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .previewSnippet(maxLength: 80)
 
-        let preview = normalizedTitle.isEmpty ? normalizedBody.previewSnippet(maxLength: 80) : normalizedTitle
+        let preview: String
+        if normalizedTitle.isEmpty {
+            if SensitiveContentDetector.shouldMaskPreview(text: normalizedBody) {
+                preview = "Sensitive snippet hidden"
+            } else {
+                preview = normalizedBody.previewSnippet(maxLength: 80)
+            }
+        } else {
+            preview = normalizedTitle
+        }
         let payload = ClipboardItemPayload(
             plainText: normalizedBody,
             imagePNGData: nil,

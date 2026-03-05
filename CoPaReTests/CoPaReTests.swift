@@ -32,6 +32,32 @@ struct CoPaReTests {
         #expect(!SensitiveContentDetector.shouldBlock(filePath: "/Users/test/Documents/notes.txt"))
     }
 
+    @Test func blocksEmbeddedSecretsAndSymlinkedSensitiveTargets() throws {
+        #expect(SensitiveContentDetector.shouldBlock(text: "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.abcdefghi123456789.jklmnopq123456789"))
+        #expect(SensitiveContentDetector.shouldBlock(text: "-----BEGIN PGP PRIVATE KEY BLOCK-----"))
+
+        let tempRoot = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("copare-tests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempRoot)
+        }
+
+        let target = tempRoot.appendingPathComponent(".env")
+        try "TOKEN=super-secret".write(to: target, atomically: true, encoding: .utf8)
+
+        let symlink = tempRoot.appendingPathComponent("notes.txt")
+        try FileManager.default.createSymbolicLink(at: symlink, withDestinationURL: target)
+
+        #expect(SensitiveContentDetector.shouldBlock(filePath: symlink.path))
+    }
+
+    @Test func masksTokenLikePreviewStrings() {
+        #expect(SensitiveContentDetector.shouldMaskPreview(text: "AKIAIOSFODNN7EXAMPLE123456"))
+        #expect(SensitiveContentDetector.shouldMaskPreview(text: "Q3VzdG9tVG9rZW5fMDEyMzQ1Njc4OTAxMjM0NQ=="))
+        #expect(!SensitiveContentDetector.shouldMaskPreview(text: "Deployment notes for sprint planning"))
+    }
+
     @Test func buildSearchIndexKeepsOnlyMinimalFileMetadata() {
         let textSearchIndex = ClipboardHistoryItem.makeSearchIndex(
             for: .text,

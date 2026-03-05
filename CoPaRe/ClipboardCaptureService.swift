@@ -211,7 +211,7 @@ final class ClipboardCaptureService {
             type = .text
         }
 
-        let preview = textToStore.previewSnippet()
+        let preview = textPreview(for: textToStore, type: type)
         let sourceBundleIdentifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased()
         let payload = ClipboardItemPayload(
             plainText: textToStore,
@@ -225,10 +225,7 @@ final class ClipboardCaptureService {
         return CapturedClipboardItem(
             type: type,
             preview: preview,
-            searchIndex: makeSearchIndex(
-                preview: preview,
-                sourceBundleIdentifier: sourceBundleIdentifier
-            ),
+            searchIndex: sourceApplicationSearchIndex(sourceBundleIdentifier),
             thumbnailPNGData: nil,
             encryptedPayload: encryptedPayload,
             digest: digest(data: data),
@@ -395,6 +392,31 @@ final class ClipboardCaptureService {
         case .image:
             return nil
         }
+    }
+
+    private func textPreview(for text: String, type: ClipboardItemType) -> String {
+        if SensitiveContentDetector.shouldMaskPreview(text: text) {
+            return type == .url ? "Sensitive URL hidden" : "Sensitive text hidden"
+        }
+        return text.previewSnippet()
+    }
+
+    private func sourceApplicationSearchIndex(_ sourceBundleIdentifier: String?) -> String? {
+        guard let sourceBundleIdentifier else {
+            return nil
+        }
+
+        var terms = [sourceBundleIdentifier]
+        if let appName = SourceApplicationResolver.displayName(for: sourceBundleIdentifier) {
+            terms.append(appName)
+        }
+
+        let merged = terms.joined(separator: " ").condensingWhitespace()
+        guard !merged.isEmpty else {
+            return nil
+        }
+
+        return String(merged.prefix(maxSearchIndexCharacters))
     }
 
     private func writeStringToPasteboard(_ text: String) -> Bool {
