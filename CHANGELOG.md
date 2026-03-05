@@ -8,7 +8,10 @@ The format is inspired by Keep a Changelog and this project follows Semantic Ver
 
 ### Added
 
-- First-launch guided onboarding ("How to") that explains core workflows, security behavior, and starting preset selection.
+- First-launch guided onboarding ("How to") redesigned as a complete interactive tour:
+  - 4-step flow (overview, search/filter, actions, security profile)
+  - required hands-on tasks to learn core actions
+  - always available from app menu via `CoPaRe > Interactive How To…`
 
 ### Changed
 

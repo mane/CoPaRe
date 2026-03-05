@@ -6,6 +6,15 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>CoPaRe</title>
         <item>
+            <title>1.3.1</title>
+            <pubDate>Thu, 05 Mar 2026 20:45:13 +0100</pubDate>
+            <sparkle:version>6</sparkle:version>
+            <sparkle:shortVersionString>1.3.1</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <enclosure url="https://github.com/mane/CoPaRe/releases/latest/download/CoPaRe-v1.3.1.zip" length="5437920" type="application/octet-stream" sparkle:edSignature="pmS9wrRYuvhcLK/z0LEXu7brcd7/DdpTKLeq53DQQHEqk+ikqkWS1DE5se+ARd9KWyNLTnd/ucEgzBMJ2ZCWDw=="/>
+        </item>
+        <item>
             <title>1.3.0</title>
             <pubDate>Wed, 04 Mar 2026 21:55:10 +0100</pubDate>
             <sparkle:version>5</sparkle:version>
@@ -26,6 +35,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 3ImkGZuBSTewQVzluxCRr3+vSjCXSL9LupWHBX5P3XOdCkwRiUwGGH1nbj+4EF+5JOYpM6awY8uV+4TXblKWDg==
-length: 1776
+edSignature: Q3OWtASeH6DoenIt4r6srg816I6K18qwIg5WQxnQwzMHJylE9zqmDjU+3Bt3s80gKaoYQ0AjqGb02g4RC5MaCA==
+length: 2449
 -->

@@ -1,9 +1,11 @@
 # CoPaRe 1.3.1
 
-CoPaRe 1.3.1 is a security hardening release focused on safer secret handling and clearer wipe behavior.
+CoPaRe 1.3.1 is a minor update focused on a more complete, intuitive interactive onboarding plus recent security hardening improvements.
 
 ## Highlights
 
+- Redesigned interactive onboarding tour (4 guided steps + hands-on tasks)
+- New app-menu entry to reopen the tour anytime: `CoPaRe > Interactive How To…`
 - Sensitive preview masking for likely secrets/tokens
 - Narrower in-memory text indexing for copied text/URL items
 - Expanded secret detection (embedded JWTs, broader token patterns, PGP private keys)
@@ -12,8 +14,8 @@ CoPaRe 1.3.1 is a security hardening release focused on safer secret handling an
 
 ## Why this update matters
 
-This release reduces the chance of accidental plaintext exposure in UI-visible metadata while preserving the fast clipboard workflow.
-It also improves detection coverage for real-world developer secrets and makes destructive cleanup actions more transparent.
+This release improves first-run UX so users learn key actions quickly while preserving CoPaRe's security posture.
+It also reduces accidental plaintext exposure in UI-visible metadata and improves detection coverage for real-world developer secrets.
 
 ## Upgrade notes
 

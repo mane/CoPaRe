@@ -12,6 +12,10 @@ It keeps captured clipboard history session-only, stores only user-authored snip
 
 ## What's new in 1.3.1
 
+- Redesigned first-launch interactive tour:
+  - complete 4-step guided flow
+  - required hands-on actions (search/filter/select/copy/pin/pause)
+  - reopen anytime from `CoPaRe > Interactive How To…`
 - Hardened sensitive-data handling in memory:
   - likely secret captures are auto-masked in previews
   - text search index avoids storing text preview bodies for copied text/URL entries
