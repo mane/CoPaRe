@@ -41,13 +41,30 @@ It keeps captured clipboard history session-only, stores only user-authored snip
 
 ## Download and install
 
-### Option 1: Use the latest GitHub release (recommended)
+### Install from GitHub Release (recommended)
 
-The recommended install path is the latest notarized GitHub release:
+Use the prebuilt, signed and notarized package from GitHub Releases:
 
 - [Latest release](https://github.com/mane/CoPaRe/releases/latest)
 
-Use the DMG included in the release assets for the smoothest first install experience.
+Step by step:
+
+1. Open the latest release page and download:
+   - `CoPaRe-vX.Y.Z.dmg`
+   - optional integrity file: `CoPaRe-vX.Y.Z.dmg.sha256`
+2. (Optional but recommended) Verify checksum:
+   ```bash
+   shasum -a 256 CoPaRe-vX.Y.Z.dmg
+   ```
+   Compare the output with the value in `CoPaRe-vX.Y.Z.dmg.sha256`.
+3. Double-click the DMG to mount it.
+4. Drag `CoPaRe.app` into `Applications`.
+5. Open `Applications > CoPaRe`.
+6. If macOS blocks first launch:
+   - open `System Settings > Privacy & Security`
+   - click `Open Anyway` for CoPaRe, then confirm once.
+
+After install, CoPaRe can auto-check signed updates from the app menu (`CoPaRe > Check for Updates…`).
 
 ### Option 2: Build from source
 
