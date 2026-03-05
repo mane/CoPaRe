@@ -6,6 +6,10 @@ The format is inspired by Keep a Changelog and this project follows Semantic Ver
 
 ## [1.3.1] - 2026-03-05
 
+### Added
+
+- First-launch guided onboarding ("How to") that explains core workflows, security behavior, and starting preset selection.
+
 ### Changed
 
 - Masked likely secret/token-like captures in item previews to reduce accidental plaintext exposure in memory/UI.

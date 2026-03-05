@@ -96,6 +96,7 @@ xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS
 ## Core features
 
 - Clipboard history for text, URLs, images, files, and folders
+- First-launch guided "How to" onboarding with key actions and security overview
 - Manual snippets with optional encrypted local persistence
 - Global launcher shortcut (`⌥⌘V`) with instant search focus
 - On-demand loading of the saved-snippets vault (`Load Saved Snippets`)
