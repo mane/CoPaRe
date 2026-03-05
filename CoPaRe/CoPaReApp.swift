@@ -36,10 +36,12 @@ struct CoPaReApp: App {
 
                 Divider()
 
-                Button(updates.isSessionInProgress ? "Update Session In Progress" : "Check for Updates…") {
-                    updates.checkForUpdates()
+                if updates.supportsInAppUpdates {
+                    Button(updates.isSessionInProgress ? "Update Session In Progress" : "Check for Updates…") {
+                        updates.checkForUpdates()
+                    }
+                    .disabled(!updates.canCheckForUpdates)
                 }
-                .disabled(!updates.canCheckForUpdates)
 
                 if settings.lockProtectionEnabled {
                     Divider()

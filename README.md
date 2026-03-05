@@ -73,13 +73,19 @@ Requirements:
 - macOS
 - Xcode 17 or newer
 
-Build:
+Build (standard GitHub/DMG flavor):
 
 ```bash
 xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS' build
 ```
 
-Test:
+Build (App Store flavor, separate configuration):
+
+```bash
+xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -configuration AppStore -destination 'platform=macOS' build
+```
+
+Test (standard flavor):
 
 ```bash
 xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS' test

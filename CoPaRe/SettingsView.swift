@@ -110,22 +110,28 @@ struct SettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
-                    Toggle(
-                        "Check automatically",
-                        isOn: Binding(
-                            get: { updates.automaticallyChecksForUpdates },
-                            set: { updates.setAutomaticallyChecks($0) }
+                    if updates.supportsInAppUpdates {
+                        Toggle(
+                            "Check automatically",
+                            isOn: Binding(
+                                get: { updates.automaticallyChecksForUpdates },
+                                set: { updates.setAutomaticallyChecks($0) }
+                            )
                         )
-                    )
 
-                    Toggle(
-                        "Download updates automatically",
-                        isOn: Binding(
-                            get: { updates.automaticallyDownloadsUpdates },
-                            set: { updates.setAutomaticallyDownloads($0) }
+                        Toggle(
+                            "Download updates automatically",
+                            isOn: Binding(
+                                get: { updates.automaticallyDownloadsUpdates },
+                                set: { updates.setAutomaticallyDownloads($0) }
+                            )
                         )
-                    )
-                    .disabled(!updates.allowsAutomaticUpdates || !updates.automaticallyChecksForUpdates)
+                        .disabled(!updates.allowsAutomaticUpdates || !updates.automaticallyChecksForUpdates)
+                    } else {
+                        Text("Updates are managed by Apple through the Mac App Store for this build.")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 sectionCard(title: "Danger Zone") {
