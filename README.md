@@ -1,7 +1,29 @@
 # CoPaRe
 
-CoPaRe is a security-focused clipboard manager for macOS.
-It keeps captured clipboard history session-only and stores only user-authored snippets across restarts when enabled.
+CoPaRe is a privacy-first clipboard manager for macOS.
+It keeps captured clipboard history session-only, stores only user-authored snippets across restarts when enabled, and prioritizes secure defaults for everyday work.
+
+## Why CoPaRe
+
+- Security-first design: session-only captured history, encrypted snippet vault, local authentication support
+- Practical daily workflow: fast search, menu bar quick panel, global shortcut, one-click copy
+- Clear privacy posture: no telemetry, no analytics SDKs, no cloud sync by default
+- Production-ready distribution: signed, notarized DMG flow and Sparkle signed updates
+
+## What's new in 1.3.1
+
+- Hardened sensitive-data handling in memory:
+  - likely secret captures are auto-masked in previews
+  - text search index avoids storing text preview bodies for copied text/URL entries
+- Stronger secret detection:
+  - improved token and key heuristics
+  - embedded JWT detection inside larger text blocks
+  - added PGP private-key detection
+- Safer file-path filtering:
+  - checks now include symlink-resolved targets to reduce bypass risk
+- Better secure-wipe UX:
+  - explicit confirmation before wipe
+  - clear success/warning feedback when protected Keychain items need authentication
 
 ## Screenshots
 

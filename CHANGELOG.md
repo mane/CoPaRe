@@ -4,6 +4,23 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.3.1] - 2026-03-05
+
+### Changed
+
+- Masked likely secret/token-like captures in item previews to reduce accidental plaintext exposure in memory/UI.
+- Reduced plaintext indexing scope for copied text/URL entries by keeping search terms limited to app-source metadata.
+- Improved secure wipe UX with explicit confirmation and clear post-action status messaging.
+
+### Security
+
+- Expanded secret-detection heuristics:
+  - embedded JWT detection (inside larger text blocks)
+  - broader token patterns (GitHub, Slack, AWS-style prefixes)
+  - PGP private key block detection
+- Hardened sensitive file-path checks by evaluating both the original path and the symlink-resolved target.
+- Improved Keychain key-deletion flow for wipe operations by attempting direct deletion first and using authenticated fallback only when required.
+
 ## [1.3.0] - 2026-03-04
 
 ### Added
