@@ -18,8 +18,8 @@ struct CoPaReTests {
             filePaths: ["/tmp/example.txt"]
         )
 
-        let sealed = try EncryptedClipboardPayload.seal(payload, service: "io.copare.tests")
-        let reopened = try sealed.open(service: "io.copare.tests")
+        let sealed = try EncryptedClipboardPayload.seal(payload)
+        let reopened = try sealed.open()
 
         #expect(reopened == payload)
     }

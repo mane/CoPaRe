@@ -3,6 +3,7 @@ import Foundation
 import Combine
 import LocalAuthentication
 import CryptoKit
+import OSLog
 
 enum ClipboardFilter: String, CaseIterable, Identifiable {
     case all
@@ -90,16 +91,16 @@ final class ClipboardManager: ObservableObject {
 
     private let snippetStore: SnippetStore
     private let captureService: ClipboardCaptureService
+    private let logger = Logger(subsystem: "io.copare.app", category: "lock")
     private let lockSnapshotKeyProvider = KeychainKeyProvider(
         service: "io.copare.app.lock-snapshot",
-        requiresUserPresence: true
+        requiresUserPresence: true,
+        cacheInMemory: false
     )
 
     private var persistTask: Task<Void, Never>?
     private var expirationTimer: Timer?
-    private var unlockedLockSnapshotKey: SymmetricKey?
     private var lockedSnapshotEnvelope: LockedClipboardEnvelope?
-    private var lockedSnapshotFallbackKey: SymmetricKey?
 
     init(
         settings: SettingsStore,
@@ -235,11 +236,11 @@ final class ClipboardManager: ObservableObject {
         }
 
         guard prepareLockedSnapshot() else {
+            logger.error("Lock aborted: unable to prepare encrypted snapshot")
             return
         }
 
         items = []
-        unlockedLockSnapshotKey = nil
         EncryptedClipboardPayload.rotateSessionProtectionKey()
         isLocked = true
         syncCaptureServiceMonitoringState()
@@ -338,9 +339,7 @@ final class ClipboardManager: ObservableObject {
     func secureWipeEntireHistory() {
         items = []
         persistTask?.cancel()
-        unlockedLockSnapshotKey = nil
         lockedSnapshotEnvelope = nil
-        lockedSnapshotFallbackKey = nil
         EncryptedClipboardPayload.rotateSessionProtectionKey()
         mutateSecurityCounters { $0.secureWipes += 1 }
 
@@ -661,7 +660,6 @@ final class ClipboardManager: ObservableObject {
     private func prepareLockedSnapshot() -> Bool {
         guard !items.isEmpty else {
             lockedSnapshotEnvelope = nil
-            lockedSnapshotFallbackKey = nil
             return true
         }
 
@@ -690,13 +688,11 @@ final class ClipboardManager: ObservableObject {
         )
 
         let encryptionKey: SymmetricKey
-        if let unlockedLockSnapshotKey {
-            encryptionKey = unlockedLockSnapshotKey
-            lockedSnapshotFallbackKey = nil
-        } else {
-            let fallbackKey = SymmetricKey(size: .bits256)
-            encryptionKey = fallbackKey
-            lockedSnapshotFallbackKey = fallbackKey
+        do {
+            encryptionKey = try lockSnapshotKeyProvider.loadOrCreateKey()
+        } catch {
+            logger.error("Unable to load lock snapshot key: \(String(describing: error), privacy: .public)")
+            return false
         }
 
         guard let envelope = try? sealLockedSnapshot(snapshot, using: encryptionKey) else {
@@ -722,24 +718,18 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func restoreAfterUnlock(using context: LAContext) async -> Bool {
-        let fallbackKey = lockedSnapshotFallbackKey
-        let persistentKey: SymmetricKey?
+        let persistentKey: SymmetricKey
 
         do {
             persistentKey = try lockSnapshotKeyProvider.loadOrCreateKey(authenticationContext: context)
         } catch {
-            if lockedSnapshotEnvelope != nil && fallbackKey == nil {
-                return false
-            }
-            persistentKey = nil
+            logger.error("Unable to access lock snapshot key after unlock: \(String(describing: error), privacy: .public)")
+            return false
         }
 
         if let envelope = lockedSnapshotEnvelope {
-            guard let decryptionKey = fallbackKey ?? persistentKey else {
-                return false
-            }
-
-            guard let restoredItems = try? openLockedSnapshot(envelope, using: decryptionKey) else {
+            guard let restoredItems = try? openLockedSnapshot(envelope, using: persistentKey) else {
+                logger.error("Unable to decrypt lock snapshot envelope")
                 return false
             }
 
@@ -748,8 +738,6 @@ final class ClipboardManager: ObservableObject {
         }
 
         lockedSnapshotEnvelope = nil
-        lockedSnapshotFallbackKey = nil
-        unlockedLockSnapshotKey = persistentKey
         return true
     }
 

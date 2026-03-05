@@ -227,8 +227,7 @@ final class ClipboardCaptureService {
             preview: preview,
             searchIndex: makeSearchIndex(
                 preview: preview,
-                sourceBundleIdentifier: sourceBundleIdentifier,
-                additionalTerms: [String(textToStore.prefix(500))]
+                sourceBundleIdentifier: sourceBundleIdentifier
             ),
             thumbnailPNGData: nil,
             encryptedPayload: encryptedPayload,
@@ -325,19 +324,13 @@ final class ClipboardCaptureService {
         let size = image.size
         let preview = "Image \(Int(size.width))x\(Int(size.height))"
         let sourceBundleIdentifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased()
-        var ocrText: String?
-
-        if settings.imageOCRIndexingEnabled {
-            ocrText = imageOCRService.recognizedText(fromPNGData: pngData)?
-                .previewSnippet(maxLength: 420)
-
-            if settings.filterSensitiveContent,
-               let ocrText,
-               SensitiveContentDetector.shouldBlock(text: ocrText)
-            {
-                onSensitiveContentSkipped?()
-                return nil
-            }
+        if settings.imageOCRIndexingEnabled,
+           settings.filterSensitiveContent,
+           let ocrText = imageOCRService.recognizedText(fromPNGData: pngData)?.previewSnippet(maxLength: 420),
+           SensitiveContentDetector.shouldBlock(text: ocrText)
+        {
+            onSensitiveContentSkipped?()
+            return nil
         }
 
         let payload = ClipboardItemPayload(
@@ -354,8 +347,7 @@ final class ClipboardCaptureService {
             preview: preview,
             searchIndex: makeSearchIndex(
                 preview: preview,
-                sourceBundleIdentifier: sourceBundleIdentifier,
-                additionalTerms: ocrText.map { [$0] } ?? []
+                sourceBundleIdentifier: sourceBundleIdentifier
             ),
             thumbnailPNGData: ClipboardHistoryItem.makeThumbnailPNGData(from: pngData),
             encryptedPayload: encryptedPayload,

@@ -40,12 +40,47 @@ enum SensitiveContentDetector {
         "asc",
         "crt",
         "der",
+        "env",
+        "envrc",
         "key",
         "kdbx",
+        "kubeconfig",
+        "npmrc",
         "ovpn",
         "pem",
+        "pub",
         "pfx",
         "p12",
+        "tfstate",
+        "tfvars",
+    ]
+
+    private static let blockedFileNames: Set<String> = [
+        ".env",
+        ".env.local",
+        ".env.production",
+        ".env.development",
+        ".npmrc",
+        ".pypirc",
+        ".netrc",
+        "credentials",
+        "id_rsa",
+        "id_dsa",
+        "id_ecdsa",
+        "id_ed25519",
+    ]
+
+    private static let blockedPathHints = [
+        "/.ssh/",
+        "/.gnupg/",
+        "/.aws/credentials",
+        "/.aws/config",
+        "/.kube/config",
+        "/.docker/config.json",
+        "/.config/gcloud/application_default_credentials.json",
+        "/.terraform.d/credentials.tfrc.json",
+        "/library/application support/1password",
+        "/library/application support/bitwarden",
     ]
 
     static func shouldBlock(text: String) -> Bool {
@@ -101,13 +136,19 @@ enum SensitiveContentDetector {
         }
 
         let lowercased = normalized.lowercased()
-        let fileExtension = URL(fileURLWithPath: normalized).pathExtension.lowercased()
+        let url = URL(fileURLWithPath: normalized)
+        let fileExtension = url.pathExtension.lowercased()
+        let fileName = url.lastPathComponent.lowercased()
 
         if blockedFileExtensions.contains(fileExtension) {
             return true
         }
 
-        if lowercased.contains("/.ssh/") || lowercased.contains("/.gnupg/") {
+        if blockedFileNames.contains(fileName) || fileName.hasPrefix(".env.") {
+            return true
+        }
+
+        if blockedPathHints.contains(where: lowercased.contains) {
             return true
         }
 

@@ -51,7 +51,7 @@ struct SettingsView: View {
                 sectionCard(title: "Capture") {
                     Toggle("Capture images", isOn: $settings.captureImages)
                     Toggle("Capture copied files/folders", isOn: $settings.captureFiles)
-                    Toggle("OCR text indexing for images", isOn: $settings.imageOCRIndexingEnabled)
+                    Toggle("OCR scan copied images for sensitive text", isOn: $settings.imageOCRIndexingEnabled)
                         .disabled(!settings.captureImages)
 
                     HStack {

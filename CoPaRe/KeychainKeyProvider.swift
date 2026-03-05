@@ -15,19 +15,25 @@ struct KeychainKeyProvider {
 
     private let service: String
     private let requiresUserPresence: Bool
+    private let cacheInMemory: Bool
     private let account = "clipboard-history-encryption-key"
     private let operationPrompt = "Authenticate to access saved CoPaRe snippets"
 
-    nonisolated init(service: String = "io.copare.app", requiresUserPresence: Bool = false) {
+    nonisolated init(
+        service: String = "io.copare.app",
+        requiresUserPresence: Bool = false,
+        cacheInMemory: Bool = true
+    ) {
         self.service = service
         self.requiresUserPresence = requiresUserPresence
+        self.cacheInMemory = cacheInMemory
     }
 
     nonisolated func loadOrCreateKey(authenticationContext: LAContext? = nil) throws -> SymmetricKey {
         Self.cacheLock.lock()
         defer { Self.cacheLock.unlock() }
 
-        if !requiresUserPresence, let cachedData = Self.cachedKeyDataByService[service] {
+        if cacheInMemory, !requiresUserPresence, let cachedData = Self.cachedKeyDataByService[service] {
             guard cachedData.count == 32 else {
                 Self.cachedKeyDataByService[service] = nil
                 throw KeychainKeyProviderError.invalidKeyData
@@ -45,7 +51,7 @@ struct KeychainKeyProvider {
                     throw KeychainKeyProviderError.invalidKeyData
                 }
 
-                if !requiresUserPresence {
+                if cacheInMemory, !requiresUserPresence {
                     Self.cachedKeyDataByService[service] = existingData
                 }
                 return SymmetricKey(data: existingData)
@@ -65,7 +71,7 @@ struct KeychainKeyProvider {
                     authenticationContext: authenticationContext
                 )
                 markMigrationCompleted()
-                if !requiresUserPresence {
+                if cacheInMemory, !requiresUserPresence {
                     Self.cachedKeyDataByService[service] = legacyData
                 }
                 return SymmetricKey(data: legacyData)
@@ -80,7 +86,7 @@ struct KeychainKeyProvider {
                 }
 
                 markMigrationCompleted()
-                if !requiresUserPresence {
+                if cacheInMemory, !requiresUserPresence {
                     Self.cachedKeyDataByService[service] = existingData
                 }
                 return SymmetricKey(data: existingData)
@@ -95,7 +101,7 @@ struct KeychainKeyProvider {
             authenticationContext: authenticationContext
         )
         markMigrationCompleted()
-        if !requiresUserPresence {
+        if cacheInMemory, !requiresUserPresence {
             Self.cachedKeyDataByService[service] = keyData
         }
         return newKey

@@ -54,7 +54,7 @@ xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS
 - On-demand loading of the saved-snippets vault (`Load Saved Snippets`)
 - Duplicate collapse with capture counters for repeated copies
 - Fast search across visible previews and minimal local file labels
-- Optional OCR indexing for image clipboard entries
+- Optional OCR scanning of copied images to block likely sensitive text
 - Filters for `All`, `Pinned`, `Text`, `Images`, and `Files`
 - Pin/unpin important entries
 - Source-application label for each captured entry
@@ -90,12 +90,12 @@ CoPaRe uses practical hardening appropriate for a local clipboard manager:
 - Search avoids indexing full text bodies in RAM; only visible previews and minimal file labels remain searchable
 - Protected pasteboard-type detection for concealed/password-manager clipboard content
 - Re-copied text is marked with concealed/auto-generated pasteboard types to discourage capture by other well-behaved clipboard tools
-- Sensitive file-path filtering for likely secret material (`.key`, `.pem`, `.ovpn`, `.ssh`, `.gnupg`)
+- Sensitive file-path filtering for likely secret material (for example `.key`, `.pem`, `.ovpn`, `.env*`, `.npmrc`, `.netrc`, `.ssh`, `.gnupg`, `~/.aws/credentials`, `~/.kube/config`)
 - Frontmost app exclusion rules prevent capture from configured bundle identifiers
 - Focused detail payload cleared when the app resigns active and after a short timeout
 - No automatic Keychain access in the normal application launch path; Keychain is touched only when saving or explicitly loading the encrypted snippets vault
 - When app lock is enabled, the saved-snippets vault key is stored with `userPresence`, so macOS requires system authentication before releasing that key
-- The temporary lock snapshot key is reused through a single authenticated unlock flow to avoid repeated prompts
+- Lock snapshots are encrypted with a Keychain-backed key and no in-memory fallback key is kept while the app is locked
 - Outbound network access is limited to Sparkle update checks against the configured appcast feed and downloading signed update archives when an update is accepted
 - No analytics or outbound telemetry code in the app source
 
