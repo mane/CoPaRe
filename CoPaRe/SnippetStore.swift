@@ -97,7 +97,10 @@ actor SnippetStore {
 
             if snippets.isEmpty {
                 try removeSnippetFileIfPresent()
-                deleteAllSnippetKeys()
+                let keysDeleted = deleteAllSnippetKeys()
+                if !keysDeleted {
+                    logger.error("Snippet key cleanup reported failures after removing empty snippet file")
+                }
                 return
             }
 
