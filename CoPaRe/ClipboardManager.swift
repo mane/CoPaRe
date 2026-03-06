@@ -742,6 +742,10 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func restoreAfterUnlock(using context: LAContext) async -> Bool {
+        guard let envelope = lockedSnapshotEnvelope else {
+            return true
+        }
+
         let persistentKey: SymmetricKey
 
         do {
@@ -751,16 +755,13 @@ final class ClipboardManager: ObservableObject {
             return false
         }
 
-        if let envelope = lockedSnapshotEnvelope {
-            guard let restoredItems = try? openLockedSnapshot(envelope, using: persistentKey) else {
-                logger.error("Unable to decrypt lock snapshot envelope")
-                return false
-            }
-
-            items = restoredItems
-            sortAndTrim()
+        guard let restoredItems = try? openLockedSnapshot(envelope, using: persistentKey) else {
+            logger.error("Unable to decrypt lock snapshot envelope")
+            return false
         }
 
+        items = restoredItems
+        sortAndTrim()
         lockedSnapshotEnvelope = nil
         return true
     }
