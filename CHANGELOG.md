@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.3.2] - 2026-03-06
+
+### Fixed
+
+- Restored unlock reliability on app startup by skipping snapshot restoration when no locked snapshot is present.
+- Stabilized in-app update checks by switching Sparkle feed resolution to the tracked `release/appcast.xml` on `main`.
+
+### Changed
+
+- Added explicit error logging when snippet key cleanup fails during empty-store save flows.
+- Added a shared `CoPaRe` scheme for consistent local/CI `xcodebuild test` execution without App Store target interference.
+
 ## [1.3.1] - 2026-03-05
 
 ### Added
