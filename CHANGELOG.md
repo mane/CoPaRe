@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.3.5] - 2026-04-01
+
+### Added
+
+- Added a generated DMG installer background, including a HiDPI variant for Retina displays, so release packages can present a polished drag-to-Applications window without hand-maintained assets.
+
+### Changed
+
+- The release pipeline now builds a styled DMG with a bundled `Applications` shortcut, fixed icon placement, and a single-window install flow instead of a bare app-only disk image.
+- Release packaging can now bootstrap a local `dmgbuild` toolchain automatically when one is not already available on the machine.
+
 ## [1.3.4] - 2026-04-01
 
 ### Fixed
