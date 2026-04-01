@@ -137,13 +137,95 @@ ZIP_NAME="${APP_NAME}-v${RELEASE_VERSION}.zip"
 ZIP_PATH="${RELEASE_DIR}/${ZIP_NAME}"
 APP_PRODUCT_PATH="${DERIVED_DATA_DIR}/Build/Products/${CONFIGURATION}/${APP_NAME}.app"
 STAGED_APP_PATH="${DMG_ROOT_DIR}/${APP_NAME}.app"
+DMG_BACKGROUND_NAME="dmg-background.png"
+DMG_BACKGROUND_DIR="${DMG_ROOT_DIR}/.background"
+DMG_BACKGROUND_PATH="${DMG_BACKGROUND_DIR}/${DMG_BACKGROUND_NAME}"
+DMG_BACKGROUND_HIDPI_PATH="${DMG_BACKGROUND_DIR}/dmg-background@2x.png"
+DMGBUILD_VERSION="${DMGBUILD_VERSION:-1.6.7}"
+DMGBUILD_VENV_DIR="${BUILD_DIR}/release-tools-venv"
+DMGBUILD_BIN="${DMGBUILD_BIN:-}"
+TEMP_DMGBUILD_SETTINGS=""
 SPARKLE_BIN_DIR="${DERIVED_DATA_DIR}/SourcePackages/artifacts/sparkle/Sparkle/bin"
 GENERATE_APPCAST_BIN="${SPARKLE_BIN_DIR}/generate_appcast"
-DISTRIBUTION_ENTITLEMENTS="${ROOT_DIR}/CoPaRe/CoPaRe.Distribution.entitlements"
+
+extract_mount_point() {
+  printf '%s\n' "$1" | awk '/\/Volumes\// {for (i=1;i<=NF;i++) if ($i ~ /^\/Volumes\//) {print substr($0, index($0, $i)); exit}}'
+}
+
+generate_dmg_background() {
+  mkdir -p "${DMG_BACKGROUND_DIR}"
+  "${ROOT_DIR}/scripts/generate-dmg-background.swift" "${DMG_BACKGROUND_PATH}" 1
+  "${ROOT_DIR}/scripts/generate-dmg-background.swift" "${DMG_BACKGROUND_HIDPI_PATH}" 2
+}
+
+resolve_dmgbuild_bin() {
+  if [[ -n "${DMGBUILD_BIN}" && -x "${DMGBUILD_BIN}" ]]; then
+    return 0
+  fi
+
+  if command -v dmgbuild >/dev/null 2>&1; then
+    DMGBUILD_BIN="$(command -v dmgbuild)"
+    return 0
+  fi
+
+  local local_bin="${DMGBUILD_VENV_DIR}/bin/dmgbuild"
+  if [[ -x "${local_bin}" ]]; then
+    DMGBUILD_BIN="${local_bin}"
+    return 0
+  fi
+
+  if ! command -v python3 >/dev/null 2>&1; then
+    return 1
+  fi
+
+  echo "Preparing local release toolchain (dmgbuild ${DMGBUILD_VERSION})"
+  if ! python3 -m venv "${DMGBUILD_VENV_DIR}"; then
+    return 1
+  fi
+
+  if ! "${DMGBUILD_VENV_DIR}/bin/python" -m pip install --quiet --disable-pip-version-check "dmgbuild==${DMGBUILD_VERSION}"; then
+    return 1
+  fi
+
+  if [[ -x "${local_bin}" ]]; then
+    DMGBUILD_BIN="${local_bin}"
+    return 0
+  fi
+
+  return 1
+}
+
+create_styled_dmg() {
+  TEMP_DMGBUILD_SETTINGS="$(mktemp "${BUILD_DIR}/dmgbuild.XXXXXX.json")"
+  cat > "${TEMP_DMGBUILD_SETTINGS}" <<EOF
+{
+  "title": "${VOLUME_NAME}",
+  "background": "${DMG_BACKGROUND_PATH}",
+  "icon-size": 128,
+  "format": "UDZO",
+  "filesystem": "HFS+",
+  "window": {
+    "position": {"x": 140, "y": 120},
+    "size": {"width": 720, "height": 460}
+  },
+  "contents": [
+    {"path": "${STAGED_APP_PATH}", "type": "file", "x": 180, "y": 255, "hide_extension": true},
+    {"path": "/Applications", "type": "link", "name": "Applications", "x": 540, "y": 255}
+  ]
+}
+EOF
+
+  "${DMGBUILD_BIN}" -s "${TEMP_DMGBUILD_SETTINGS}" "${VOLUME_NAME}" "${DMG_PATH}"
+  rm -f "${TEMP_DMGBUILD_SETTINGS}"
+  TEMP_DMGBUILD_SETTINGS=""
+}
 
 cleanup_mount() {
   if [[ -n "${MOUNT_POINT:-}" && -d "${MOUNT_POINT}" ]]; then
     hdiutil detach "${MOUNT_POINT}" >/dev/null 2>&1 || true
+  fi
+  if [[ -n "${TEMP_DMGBUILD_SETTINGS}" && -f "${TEMP_DMGBUILD_SETTINGS}" ]]; then
+    rm -f "${TEMP_DMGBUILD_SETTINGS}"
   fi
 }
 trap cleanup_mount EXIT
@@ -151,10 +233,10 @@ trap cleanup_mount EXIT
 mkdir -p "${DIST_DIR}" "${RELEASE_DIR}" "${BUILD_DIR}"
 
 if [[ "${CLEAN_BUILD}" == "1" ]]; then
-  echo "[1/9] Clean build ${APP_NAME} (${CONFIGURATION})"
+  echo "[1/11] Clean build ${APP_NAME} (${CONFIGURATION})"
   xcodebuild -project "${ROOT_DIR}/${PROJECT_FILE}" -scheme "${SCHEME}" -configuration "${CONFIGURATION}" -destination 'platform=macOS' -derivedDataPath "${DERIVED_DATA_DIR}" clean build
 else
-  echo "[1/9] Build ${APP_NAME} (${CONFIGURATION})"
+  echo "[1/11] Build ${APP_NAME} (${CONFIGURATION})"
   xcodebuild -project "${ROOT_DIR}/${PROJECT_FILE}" -scheme "${SCHEME}" -configuration "${CONFIGURATION}" -destination 'platform=macOS' -derivedDataPath "${DERIVED_DATA_DIR}" build
 fi
 
@@ -163,12 +245,15 @@ if [[ ! -d "${APP_PRODUCT_PATH}" ]]; then
   exit 1
 fi
 
-echo "[2/9] Stage app bundle"
+echo "[2/11] Stage app bundle"
 rm -rf "${DMG_ROOT_DIR}"
 mkdir -p "${DMG_ROOT_DIR}"
 ditto "${APP_PRODUCT_PATH}" "${STAGED_APP_PATH}"
+# Present the standard drag-to-Applications install flow in a single Finder window.
+ln -s /Applications "${DMG_ROOT_DIR}/Applications"
+generate_dmg_background
 
-echo "[3/9] Sign app bundle"
+echo "[3/11] Sign app bundle"
 codesign --deep --force --verify --verbose --options runtime --timestamp \
   --preserve-metadata=identifier,entitlements,flags \
   --sign "${SIGN_IDENTITY}" "${STAGED_APP_PATH}"
@@ -203,7 +288,12 @@ fi
 
 echo "[7/11] Create DMG ${DMG_NAME}"
 rm -f "${DMG_PATH}" "${SHA_PATH}"
-hdiutil create -volname "${VOLUME_NAME}" -srcfolder "${DMG_ROOT_DIR}" -ov -format UDZO "${DMG_PATH}"
+if resolve_dmgbuild_bin; then
+  create_styled_dmg
+else
+  echo "Warning: dmgbuild is unavailable; creating a plain DMG without custom Finder layout." >&2
+  hdiutil create -fs HFS+ -volname "${VOLUME_NAME}" -srcfolder "${DMG_ROOT_DIR}" -ov -format UDZO "${DMG_PATH}"
+fi
 
 echo "[8/11] Sign DMG"
 codesign --force --timestamp --sign "${SIGN_IDENTITY}" "${DMG_PATH}"
@@ -224,7 +314,7 @@ fi
 echo "[11/11] Verify + SHA256"
 spctl -a -t open -vv "${DMG_PATH}" || true
 ATTACH_OUT="$(hdiutil attach "${DMG_PATH}" -readonly -nobrowse)"
-MOUNT_POINT="$(printf '%s\n' "${ATTACH_OUT}" | awk '/\/Volumes\// {for (i=1;i<=NF;i++) if ($i ~ /^\/Volumes\//) {print substr($0, index($0, $i)); exit}}')"
+MOUNT_POINT="$(extract_mount_point "${ATTACH_OUT}")"
 if [[ -n "${MOUNT_POINT}" ]]; then
   spctl -a -vvv -t exec "${MOUNT_POINT}/${APP_NAME}.app" || true
 fi

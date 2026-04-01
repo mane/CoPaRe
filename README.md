@@ -62,7 +62,7 @@ Step by step:
    ```
    Compare the output with the value in `CoPaRe-vX.Y.Z.dmg.sha256`.
 3. Double-click the DMG to mount it.
-4. Drag `CoPaRe.app` into `Applications`.
+4. In the same DMG window, drag `CoPaRe.app` onto the bundled `Applications` shortcut.
 5. Open `Applications > CoPaRe`.
 6. If macOS blocks first launch:
    - open `System Settings > Privacy & Security`
