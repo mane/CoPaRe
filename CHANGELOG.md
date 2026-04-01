@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.3.7] - 2026-04-01
+
+### Added
+
+- Added a manual `Check for Updates…` action directly in the menu bar menu.
+- Added a manual `Check for Updates…` button in Settings under the Updates section.
+
+### Changed
+
+- The manual update controls now reflect the current Sparkle session state and disable themselves while an update session is already running.
+
 ## [1.3.6] - 2026-04-01
 
 ### Fixed

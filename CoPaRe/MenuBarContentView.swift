@@ -73,6 +73,15 @@ struct MenuBarContentView: View {
 
         Divider()
 
+        if updates.supportsInAppUpdates {
+            Button(updates.isSessionInProgress ? "Update Session In Progress" : "Check for Updates…") {
+                updates.checkForUpdates()
+            }
+            .disabled(!updates.canCheckForUpdates)
+
+            Divider()
+        }
+
         Text("Version \(updates.currentVersionDisplay)")
             .foregroundStyle(.secondary)
 

@@ -6,6 +6,14 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>CoPaRe</title>
         <item>
+            <title>1.3.7</title>
+            <pubDate>Wed, 01 Apr 2026 13:20:01 +0200</pubDate>
+            <sparkle:version>12</sparkle:version>
+            <sparkle:shortVersionString>1.3.7</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/mane/CoPaRe/releases/latest/download/CoPaRe-v1.3.7.zip" length="5886168" type="application/octet-stream" sparkle:edSignature="TH4qRukitmkGIf/bT+O+ZGqfPurPcqNukZT8YNGLfEyXhca+9P3ehsZawebyyDm5vrw1rVm6m8hH4eRMrD9MAA=="/>
+        </item>
+        <item>
             <title>1.3.6</title>
             <pubDate>Wed, 01 Apr 2026 12:42:31 +0200</pubDate>
             <sparkle:version>11</sparkle:version>
@@ -20,14 +28,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
             <sparkle:shortVersionString>1.3.5</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
             <enclosure url="https://github.com/mane/CoPaRe/releases/latest/download/CoPaRe-v1.3.5.zip" length="5880322" type="application/octet-stream" sparkle:edSignature="EyWdRSTD+/um+Qsaj5k4sjc9b6Dt2Pj01efJpvzUa3I6MvML78hk6Qrkh74ffnQcsiG5d9oLthKHfDckTAFRAQ=="/>
-        </item>
-        <item>
-            <title>1.3.4</title>
-            <pubDate>Wed, 01 Apr 2026 11:23:39 +0200</pubDate>
-            <sparkle:version>9</sparkle:version>
-            <sparkle:shortVersionString>1.3.4</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/mane/CoPaRe/releases/latest/download/CoPaRe-v1.3.4.zip" length="5880354" type="application/octet-stream" sparkle:edSignature="AFUMa76ILm3tw0XmPQyJ0s9Kc5u82Cmh5XvyCHww/JKAJjafgzU7bWo7L4M+GFTKYLDtbUqzO70uwzmI7hTNDw=="/>
         </item>
         <item>
             <title>1.3.1</title>
@@ -59,6 +59,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 88CJXQmG1Sj8L0MRoMHE+RXGBI3woQVIb6BdZ+trxx79UIUvI3bXA520aK4eKcVI9drwISC2QJuZIwbtG1//BA==
-length: 4233
+edSignature: fcMUutY6sBMIuI5hGJc1niOldlFJ0dXHEZ1T8esyB4pYLeTprDDd9anmTvDjACcWJNoyh8iZd0dUUxWfgdEhAQ==
+length: 4234
 -->

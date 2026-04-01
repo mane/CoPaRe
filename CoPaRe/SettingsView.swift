@@ -111,6 +111,12 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
 
                     if updates.supportsInAppUpdates {
+                        Button(updates.isSessionInProgress ? "Update Session In Progress" : "Check for Updates…") {
+                            updates.checkForUpdates()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!updates.canCheckForUpdates)
+
                         Toggle(
                             "Check automatically",
                             isOn: Binding(
