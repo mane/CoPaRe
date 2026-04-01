@@ -4,6 +4,13 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.3.3] - 2026-04-01
+
+### Changed
+
+- CoPaRe now runs as a menu bar-only app and no longer shows a Dock icon while it is active.
+- Applied the same menu bar-only launch behavior to the dedicated App Store build so both distribution channels stay aligned.
+
 ## [1.3.2] - 2026-03-06
 
 ### Fixed
