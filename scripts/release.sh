@@ -170,8 +170,7 @@ ditto "${APP_PRODUCT_PATH}" "${STAGED_APP_PATH}"
 
 echo "[3/9] Sign app bundle"
 codesign --deep --force --verify --verbose --options runtime --timestamp \
-  --entitlements "${DISTRIBUTION_ENTITLEMENTS}" \
-  --preserve-metadata=identifier \
+  --preserve-metadata=identifier,entitlements,flags \
   --sign "${SIGN_IDENTITY}" "${STAGED_APP_PATH}"
 codesign --verify --deep --strict --verbose=2 "${STAGED_APP_PATH}"
 "${ROOT_DIR}/scripts/security-check.sh" "${STAGED_APP_PATH}"

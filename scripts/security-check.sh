@@ -36,6 +36,11 @@ fi
 
 ENT_DUMP="$(plutil -p "${ENT_TMP}" 2>/dev/null || true)"
 
+if printf '%s\n' "${ENT_DUMP}" | grep -Fq '$('; then
+  echo "ERROR: unresolved entitlement placeholder detected in signed app" >&2
+  exit 1
+fi
+
 if ! printf '%s\n' "${ENT_DUMP}" | grep -Fq '"com.apple.security.app-sandbox" => true'; then
   echo "ERROR: app sandbox is not enabled" >&2
   exit 1
