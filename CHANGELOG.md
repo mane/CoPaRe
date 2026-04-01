@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.3.4] - 2026-04-01
+
+### Fixed
+
+- Restored Sparkle installer connectivity in release builds by preserving the app's expanded mach-lookup entitlements during the final Developer ID signing step.
+
+### Changed
+
+- Security verification now fails fast if a signed release still contains unresolved entitlement placeholders.
+
 ## [1.3.3] - 2026-04-01
 
 ### Changed
