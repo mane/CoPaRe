@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.3.6] - 2026-04-01
+
+### Fixed
+
+- Corrected the Sparkle release-signing workflow for sandboxed builds by re-signing Sparkle helpers and XPC services explicitly instead of using a deep app re-sign, which could break in-app updates.
+- Added release validation for Sparkle helper signing and quarantine state so broken updater bundles fail before publication.
+- The menu bar `Open CoPaRe` action now reuses the existing main window instead of opening duplicate windows.
+
+### Changed
+
+- The main app scene now behaves as a single reusable window rather than a window group.
+- CoPaRe now exposes the full app version and build number in both Settings and the menu bar panel.
+
 ## [1.3.5] - 2026-04-01
 
 ### Added

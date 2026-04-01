@@ -18,7 +18,7 @@ struct CoPaReApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("CoPaRe", id: "main") {
+        Window("CoPaRe", id: "main") {
             MainWindowContainerView()
                 .environmentObject(settings)
                 .environmentObject(manager)
@@ -76,6 +76,7 @@ struct CoPaReApp: App {
         MenuBarExtra("CoPaRe", systemImage: "paperclip.circle.fill") {
             MenuBarContentView()
                 .environmentObject(manager)
+                .environmentObject(updates)
                 .environmentObject(windowCoordinator)
         }
         .menuBarExtraStyle(.menu)

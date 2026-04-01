@@ -137,6 +137,12 @@ ZIP_NAME="${APP_NAME}-v${RELEASE_VERSION}.zip"
 ZIP_PATH="${RELEASE_DIR}/${ZIP_NAME}"
 APP_PRODUCT_PATH="${DERIVED_DATA_DIR}/Build/Products/${CONFIGURATION}/${APP_NAME}.app"
 STAGED_APP_PATH="${DMG_ROOT_DIR}/${APP_NAME}.app"
+SPARKLE_FRAMEWORK_PATH="${STAGED_APP_PATH}/Contents/Frameworks/Sparkle.framework"
+SPARKLE_FRAMEWORK_VERSION_PATH="${SPARKLE_FRAMEWORK_PATH}/Versions/B"
+SPARKLE_AUTOUPDATE_PATH="${SPARKLE_FRAMEWORK_VERSION_PATH}/Autoupdate"
+SPARKLE_UPDATER_PATH="${SPARKLE_FRAMEWORK_VERSION_PATH}/Updater.app"
+SPARKLE_DOWNLOADER_XPC_PATH="${SPARKLE_FRAMEWORK_VERSION_PATH}/XPCServices/Downloader.xpc"
+SPARKLE_INSTALLER_XPC_PATH="${SPARKLE_FRAMEWORK_VERSION_PATH}/XPCServices/Installer.xpc"
 DMG_BACKGROUND_NAME="dmg-background.png"
 DMG_BACKGROUND_DIR="${DMG_ROOT_DIR}/.background"
 DMG_BACKGROUND_PATH="${DMG_BACKGROUND_DIR}/${DMG_BACKGROUND_NAME}"
@@ -230,6 +236,37 @@ cleanup_mount() {
 }
 trap cleanup_mount EXIT
 
+strip_quarantine_attributes() {
+  local target="$1"
+
+  if command -v xattr >/dev/null 2>&1; then
+    xattr -dr com.apple.quarantine "${target}" 2>/dev/null || true
+  fi
+}
+
+sign_path() {
+  local path="$1"
+  shift
+
+  codesign --force --timestamp --options runtime --sign "${SIGN_IDENTITY}" "$@" "${path}"
+}
+
+sign_staged_app_bundle() {
+  if [[ ! -d "${SPARKLE_FRAMEWORK_PATH}" ]]; then
+    echo "Error: Sparkle.framework not found at ${SPARKLE_FRAMEWORK_PATH}" >&2
+    exit 1
+  fi
+
+  strip_quarantine_attributes "${STAGED_APP_PATH}"
+
+  sign_path "${SPARKLE_AUTOUPDATE_PATH}"
+  sign_path "${SPARKLE_UPDATER_PATH}"
+  sign_path "${SPARKLE_DOWNLOADER_XPC_PATH}"
+  sign_path "${SPARKLE_INSTALLER_XPC_PATH}"
+  sign_path "${SPARKLE_FRAMEWORK_PATH}"
+  sign_path "${STAGED_APP_PATH}" --preserve-metadata=identifier,entitlements,flags
+}
+
 mkdir -p "${DIST_DIR}" "${RELEASE_DIR}" "${BUILD_DIR}"
 
 if [[ "${CLEAN_BUILD}" == "1" ]]; then
@@ -254,9 +291,7 @@ ln -s /Applications "${DMG_ROOT_DIR}/Applications"
 generate_dmg_background
 
 echo "[3/11] Sign app bundle"
-codesign --deep --force --verify --verbose --options runtime --timestamp \
-  --preserve-metadata=identifier,entitlements,flags \
-  --sign "${SIGN_IDENTITY}" "${STAGED_APP_PATH}"
+sign_staged_app_bundle
 codesign --verify --deep --strict --verbose=2 "${STAGED_APP_PATH}"
 "${ROOT_DIR}/scripts/security-check.sh" "${STAGED_APP_PATH}"
 

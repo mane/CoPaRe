@@ -104,7 +104,7 @@ struct SettingsView: View {
                 }
 
                 sectionCard(title: "Updates") {
-                    counterRow(title: "Current version", value: updates.currentVersion)
+                    counterRow(title: "Current version", value: updates.currentVersionDisplay)
 
                     Text(updates.statusSummary)
                         .font(.footnote)

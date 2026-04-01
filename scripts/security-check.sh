@@ -61,7 +61,35 @@ if ! printf '%s\n' "${CODE_SIGN_DV}" | grep -Eq 'Runtime Version|flags=.*runtime
   echo "WARNING: hardened runtime signal not detected in current signature metadata"
 fi
 
+SPARKLE_FRAMEWORK_PATH="${APP_PATH}/Contents/Frameworks/Sparkle.framework"
+SPARKLE_AUTOUPDATE_PATH="${SPARKLE_FRAMEWORK_PATH}/Versions/B/Autoupdate"
+SPARKLE_INSTALLER_XPC_PATH="${SPARKLE_FRAMEWORK_PATH}/Versions/B/XPCServices/Installer.xpc"
+
+if [[ -d "${SPARKLE_FRAMEWORK_PATH}" ]]; then
+  for helper_path in "${SPARKLE_AUTOUPDATE_PATH}" "${SPARKLE_INSTALLER_XPC_PATH}"; do
+    if [[ ! -e "${helper_path}" ]]; then
+      echo "ERROR: expected Sparkle helper missing at ${helper_path}" >&2
+      exit 1
+    fi
+
+    if xattr -lr "${helper_path}" 2>/dev/null | grep -Fq 'com.apple.quarantine'; then
+      echo "ERROR: Sparkle helper still has quarantine attribute: ${helper_path}" >&2
+      exit 1
+    fi
+  done
+
+  AUTOUPDATE_SIGN_DV="$(codesign -dv --verbose=4 "${SPARKLE_AUTOUPDATE_PATH}" 2>&1 || true)"
+  if ! printf '%s\n' "${AUTOUPDATE_SIGN_DV}" | grep -Fq 'Authority=Developer ID Application:'; then
+    echo "ERROR: Autoupdate is not signed with a Developer ID Application certificate" >&2
+    exit 1
+  fi
+fi
+
 echo "Security check passed for ${APP_PATH}"
 echo "- app-sandbox: true"
 echo "- files.user-selected.read-only: true"
 echo "- get-task-allow: false"
+if [[ -d "${SPARKLE_FRAMEWORK_PATH}" ]]; then
+  echo "- sparkle helper quarantine: none"
+  echo "- sparkle autoupdate signer: Developer ID Application"
+fi

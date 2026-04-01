@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MenuBarContentView: View {
     @EnvironmentObject private var manager: ClipboardManager
+    @EnvironmentObject private var updates: AppUpdateChecker
     @EnvironmentObject private var windowCoordinator: WindowCoordinator
 
     var body: some View {
@@ -69,6 +70,11 @@ struct MenuBarContentView: View {
                 }
             }
         }
+
+        Divider()
+
+        Text("Version \(updates.currentVersionDisplay)")
+            .foregroundStyle(.secondary)
 
         Divider()
 

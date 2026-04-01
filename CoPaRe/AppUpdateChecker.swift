@@ -45,6 +45,14 @@ final class AppUpdateChecker: NSObject, ObservableObject {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
     }
 
+    var currentBuildNumber: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+    }
+
+    var currentVersionDisplay: String {
+        "\(currentVersion) (\(currentBuildNumber))"
+    }
+
     var supportsInAppUpdates: Bool {
 #if APP_STORE
         return false
