@@ -19,6 +19,17 @@ actor SnippetStore {
         let createdAt: Date
         let updatedAt: Date
         let pinnedAt: Date?
+        let tags: [String]
+
+        private enum CodingKeys: String, CodingKey {
+            case id
+            case preview
+            case body
+            case createdAt
+            case updatedAt
+            case pinnedAt
+            case tags
+        }
 
         init(
             id: UUID,
@@ -26,7 +37,8 @@ actor SnippetStore {
             body: String,
             createdAt: Date,
             updatedAt: Date,
-            pinnedAt: Date?
+            pinnedAt: Date?,
+            tags: [String]
         ) {
             self.id = id
             self.preview = preview
@@ -34,6 +46,18 @@ actor SnippetStore {
             self.createdAt = createdAt
             self.updatedAt = updatedAt
             self.pinnedAt = pinnedAt
+            self.tags = ClipboardHistoryItem.normalizedTags(tags)
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(UUID.self, forKey: .id)
+            preview = try container.decode(String.self, forKey: .preview)
+            body = try container.decode(String.self, forKey: .body)
+            createdAt = try container.decode(Date.self, forKey: .createdAt)
+            updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+            pinnedAt = try container.decodeIfPresent(Date.self, forKey: .pinnedAt)
+            tags = ClipboardHistoryItem.normalizedTags(try container.decodeIfPresent([String].self, forKey: .tags) ?? [])
         }
     }
 
@@ -153,6 +177,10 @@ actor SnippetStore {
             return nil
         }
 
+        let searchTerms = ([snippet.preview] + snippet.tags.map { "#\($0)" })
+            .joined(separator: " ")
+            .condensingWhitespace()
+
         return ClipboardHistoryItem(
             id: snippet.id,
             type: .text,
@@ -161,14 +189,15 @@ actor SnippetStore {
             pinnedAt: snippet.pinnedAt,
             expiresAt: nil,
             preview: snippet.preview,
-            searchIndex: String(snippet.preview.prefix(120)),
+            searchIndex: String(searchTerms.prefix(160)),
             thumbnailPNGData: nil,
             encryptedPayload: runtimePayload,
-            digest: digest(for: "snippet:\(snippet.preview)\n\(snippet.body)"),
+            digest: digest(for: "snippet:\(snippet.preview)\n\(snippet.body)\n\(snippet.tags.joined(separator: ","))"),
             byteSize: Data(snippet.body.utf8).count,
             origin: .snippet,
             captureCount: 1,
-            sourceBundleIdentifier: nil
+            sourceBundleIdentifier: nil,
+            tags: snippet.tags
         )
     }
 
@@ -185,7 +214,8 @@ actor SnippetStore {
             body: plainText,
             createdAt: item.createdAt,
             updatedAt: item.updatedAt,
-            pinnedAt: item.pinnedAt
+            pinnedAt: item.pinnedAt,
+            tags: item.tags
         )
     }
 

@@ -157,6 +157,7 @@ struct ClipboardHistoryItem: Identifiable, Hashable {
     let origin: ClipboardItemOrigin
     var captureCount: Int
     let sourceBundleIdentifier: String?
+    var tags: [String]
 
     nonisolated var isPinned: Bool {
         pinnedAt != nil
@@ -181,7 +182,8 @@ struct ClipboardHistoryItem: Identifiable, Hashable {
         byteSize: Int,
         origin: ClipboardItemOrigin = .captured,
         captureCount: Int = 1,
-        sourceBundleIdentifier: String?
+        sourceBundleIdentifier: String?,
+        tags: [String] = []
     ) {
         self.id = id
         self.type = type
@@ -198,6 +200,7 @@ struct ClipboardHistoryItem: Identifiable, Hashable {
         self.origin = origin
         self.captureCount = captureCount
         self.sourceBundleIdentifier = sourceBundleIdentifier
+        self.tags = Self.normalizedTags(tags)
     }
 
     nonisolated func decryptedPayload() -> ClipboardItemPayload? {
@@ -226,6 +229,26 @@ struct ClipboardHistoryItem: Identifiable, Hashable {
         }
 
         return String(trimmed.prefix(120))
+    }
+
+    nonisolated static func normalizedTags(_ tags: [String]) -> [String] {
+        var seen = Set<String>()
+        return tags.compactMap { rawTag in
+            let tag = rawTag
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .replacingOccurrences(of: "#", with: "")
+
+            guard !tag.isEmpty, tag.count <= 32, seen.insert(tag).inserted else {
+                return nil
+            }
+            return tag
+        }
+    }
+
+    nonisolated static func parseTags(_ rawText: String) -> [String] {
+        let separators = CharacterSet(charactersIn: ",; \n\t")
+        return normalizedTags(rawText.components(separatedBy: separators))
     }
 }
 

@@ -30,6 +30,25 @@ struct MenuBarContentView: View {
         }
         .disabled(manager.isLocked)
 
+        Menu("Privacy Pause") {
+            Button("5 Minutes") {
+                manager.pauseCapture(for: 5 * 60)
+            }
+            Button("15 Minutes") {
+                manager.pauseCapture(for: 15 * 60)
+            }
+            Button("30 Minutes") {
+                manager.pauseCapture(for: 30 * 60)
+            }
+            if manager.isPrivacyPaused {
+                Divider()
+                Button("Resume Now") {
+                    manager.resumeCapture()
+                }
+            }
+        }
+        .disabled(manager.isLocked)
+
         Button("Clear unpinned history", role: .destructive) {
             manager.clearHistory(keepPinned: true)
         }
@@ -48,6 +67,18 @@ struct MenuBarContentView: View {
                         Button("Copy as Plain Text") {
                             manager.copyAsPlainText(item)
                         }
+
+                        Button("Copy Clean Text") {
+                            manager.copyCleanText(item)
+                        }
+
+                        Button("Copy as Markdown") {
+                            manager.copyAsMarkdown(item)
+                        }
+
+                        Button("Search Web") {
+                            manager.searchWeb(for: item)
+                        }
                     }
 
                     Button(item.isPinned ? "Unpin" : "Pin") {
@@ -57,6 +88,12 @@ struct MenuBarContentView: View {
                     if item.type == .file {
                         Button("Reveal in Finder") {
                             manager.revealFiles(of: item)
+                        }
+                    }
+
+                    if item.type == .url {
+                        Button("Open URL") {
+                            manager.openURL(item)
                         }
                     }
 

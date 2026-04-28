@@ -103,6 +103,16 @@ final class ClipboardCaptureService {
         return true
     }
 
+    @discardableResult
+    func writeString(_ text: String) -> Bool {
+        guard writeStringToPasteboard(text) else {
+            return false
+        }
+
+        digestToIgnoreOnce = digest(data: Data(text.utf8))
+        return true
+    }
+
     private func schedulePollingTimer() {
         timer?.invalidate()
 
@@ -159,28 +169,40 @@ final class ClipboardCaptureService {
             return nil
         }
 
+        let captureRule = settings.appCaptureRule(for: sourceBundleIdentifier)
+        if captureRule?.ignoresCapture == true {
+            onExcludedApplicationSkipped?()
+            return nil
+        }
+
         let pasteboardTypes = pasteboard.types?.map(\.rawValue) ?? []
         if SensitiveContentDetector.shouldBlock(pasteboardTypes: pasteboardTypes) {
             onSensitiveContentSkipped?()
             return nil
         }
 
-        if settings.captureFiles, let fileCapture = readFileCapture() {
+        if captureRule?.textOnly != true,
+           settings.captureFiles,
+           let fileCapture = readFileCapture(sourceBundleIdentifier: sourceBundleIdentifier)
+        {
             return fileCapture
         }
 
-        if let textCapture = readTextCapture() {
+        if let textCapture = readTextCapture(sourceBundleIdentifier: sourceBundleIdentifier) {
             return textCapture
         }
 
-        if settings.captureImages, let imageCapture = readImageCapture() {
+        if captureRule?.textOnly != true,
+           settings.captureImages,
+           let imageCapture = readImageCapture(sourceBundleIdentifier: sourceBundleIdentifier)
+        {
             return imageCapture
         }
 
         return nil
     }
 
-    private func readTextCapture() -> CapturedClipboardItem? {
+    private func readTextCapture(sourceBundleIdentifier: String?) -> CapturedClipboardItem? {
         guard let rawText = pasteboard.string(forType: .string) else {
             return nil
         }
@@ -217,7 +239,6 @@ final class ClipboardCaptureService {
         }
 
         let preview = textPreview(for: textToStore, type: type)
-        let sourceBundleIdentifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased()
         let payload = ClipboardItemPayload(
             plainText: textToStore,
             imagePNGData: nil,
@@ -239,7 +260,7 @@ final class ClipboardCaptureService {
         )
     }
 
-    private func readFileCapture() -> CapturedClipboardItem? {
+    private func readFileCapture(sourceBundleIdentifier: String?) -> CapturedClipboardItem? {
         guard let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: nil) as? [URL], !urls.isEmpty else {
             return nil
         }
@@ -282,7 +303,6 @@ final class ClipboardCaptureService {
             return nil
         }
 
-        let sourceBundleIdentifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased()
         let searchablePaths = paths
             .map { URL(fileURLWithPath: $0).lastPathComponent }
             .joined(separator: " ")
@@ -303,7 +323,7 @@ final class ClipboardCaptureService {
         )
     }
 
-    private func readImageCapture() -> CapturedClipboardItem? {
+    private func readImageCapture(sourceBundleIdentifier: String?) -> CapturedClipboardItem? {
         let imageData = pasteboard.data(forType: .png) ?? {
             guard let tiffData = pasteboard.data(forType: .tiff), let image = NSImage(data: tiffData) else {
                 return nil
@@ -325,7 +345,6 @@ final class ClipboardCaptureService {
 
         let size = image.size
         let preview = "Image \(Int(size.width))x\(Int(size.height))"
-        let sourceBundleIdentifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased()
         if settings.imageOCRIndexingEnabled,
            settings.filterSensitiveContent,
            let ocrText = imageOCRService.recognizedText(fromPNGData: pngData)?.previewSnippet(maxLength: 420),

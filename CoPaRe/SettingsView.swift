@@ -1,10 +1,13 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject private var settings: SettingsStore
     @EnvironmentObject private var manager: ClipboardManager
     @EnvironmentObject private var updates: AppUpdateChecker
     @State private var isShowingSecureWipeConfirmation = false
+    @State private var snippetTransferMessage: String?
 
     private var panelColor: Color {
         Color(nsColor: NSColor.controlBackgroundColor)
@@ -76,8 +79,39 @@ struct SettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
+                    Picker("Masked preview TTL", selection: $settings.maskedContentTTL) {
+                        ForEach(ClipboardItemTTL.allCases) { ttl in
+                            Text(ttl.label).tag(ttl)
+                        }
+                    }
+
                     Stepper(value: $settings.historyLimit, in: 20...1_000, step: 10) {
                         Text("Unpinned history limit: \(settings.historyLimit)")
+                    }
+
+                    Stepper(value: $settings.perAppHistoryLimit, in: 5...500, step: 5) {
+                        Text("Per-app unpinned limit: \(settings.perAppHistoryLimit)")
+                    }
+                }
+
+                sectionCard(title: "Snippets") {
+                    HStack(spacing: 10) {
+                        Button("Import Snippets") {
+                            importSnippets()
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("Export Snippets") {
+                            exportSnippets()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(!manager.items.contains(where: \.isSnippet))
+                    }
+
+                    if let snippetTransferMessage {
+                        Text(snippetTransferMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -95,12 +129,27 @@ struct SettingsView: View {
                         )
                 }
 
+                sectionCard(title: "Per-App Rules") {
+                    Text("One rule per line. Examples: `com.example.app ignore`, `com.example.editor text-only`, `com.example.chat ttl:15m`.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    TextEditor(text: $settings.appCaptureRulesRawText)
+                        .font(.system(size: 12, weight: .regular, design: .monospaced))
+                        .frame(minHeight: 110)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(Color.secondary.opacity(0.18), lineWidth: 1)
+                        )
+                }
+
                 sectionCard(title: "Security Events") {
                     counterRow(title: "Sensitive content blocked", value: manager.securityCounters.sensitiveContentBlocked)
                     counterRow(title: "Excluded app skips", value: manager.securityCounters.excludedApplicationSkips)
                     counterRow(title: "Expired entries removed", value: manager.securityCounters.expiredEntriesRemoved)
                     counterRow(title: "Secure wipes", value: manager.securityCounters.secureWipes)
                     counterRow(title: "Unlock events", value: manager.securityCounters.unlockEvents)
+                    counterRow(title: "Privacy pauses", value: manager.securityCounters.privacyPauses)
                 }
 
                 sectionCard(title: "Updates") {
@@ -196,5 +245,36 @@ struct SettingsView: View {
             Text(value)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private func exportSnippets() {
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "CoPaRe Snippets.json"
+        panel.canCreateDirectories = true
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        snippetTransferMessage = manager.exportSnippets(to: url)
+            ? "Snippets exported."
+            : "Snippet export failed."
+    }
+
+    private func importSnippets() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+
+        let importedCount = manager.importSnippets(from: url)
+        snippetTransferMessage = importedCount == 1
+            ? "Imported 1 snippet."
+            : "Imported \(importedCount) snippets."
     }
 }

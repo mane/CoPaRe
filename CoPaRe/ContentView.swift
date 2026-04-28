@@ -1,4 +1,5 @@
 import AppKit
+import CoreImage.CIFilterBuiltins
 import SwiftUI
 
 struct ContentView: View {
@@ -12,6 +13,8 @@ struct ContentView: View {
     @State private var isShowingSecurityOnboarding = false
     @State private var snippetTitle = ""
     @State private var snippetBody = ""
+    @State private var snippetTags = ""
+    @State private var qrCodeText: String?
     @FocusState private var searchFieldFocused: Bool
     @AppStorage("onboardingTourVersion") private var onboardingTourVersion = 0
 
@@ -77,6 +80,30 @@ struct ContentView: View {
                     }
                 }
 
+                Menu {
+                    Button("Pause 5 Minutes") {
+                        manager.pauseCapture(for: 5 * 60)
+                    }
+                    Button("Pause 15 Minutes") {
+                        manager.pauseCapture(for: 15 * 60)
+                    }
+                    Button("Pause 30 Minutes") {
+                        manager.pauseCapture(for: 30 * 60)
+                    }
+                    if manager.isPrivacyPaused {
+                        Divider()
+                        Button("Resume Now") {
+                            manager.resumeCapture()
+                        }
+                    }
+                } label: {
+                    Label(
+                        manager.isPrivacyPaused ? "Privacy \(manager.privacyPauseStatus ?? "")" : "Privacy Pause",
+                        systemImage: manager.isPrivacyPaused ? "pause.circle.fill" : "pause.circle"
+                    )
+                }
+                .disabled(manager.isLocked)
+
                 Button(manager.isMonitoringEnabled ? "Pause" : "Resume") {
                     manager.toggleMonitoring()
                 }
@@ -100,6 +127,14 @@ struct ContentView: View {
         }
         .sheet(isPresented: $isShowingSnippetComposer) {
             snippetComposer
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { qrCodeText != nil },
+                set: { if !$0 { qrCodeText = nil } }
+            )
+        ) {
+            qrCodeSheet
         }
         .sheet(isPresented: $isShowingSecurityOnboarding) {
             SecurityOnboardingView()
@@ -209,9 +244,9 @@ struct ContentView: View {
             }
 
             HStack(spacing: 10) {
-                Label(manager.isMonitoringEnabled ? "Monitoring on" : "Monitoring paused", systemImage: manager.isMonitoringEnabled ? "waveform" : "pause.fill")
+                Label(monitoringStatusLabel, systemImage: monitoringStatusIcon)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(manager.isPrivacyPaused ? .orange : .secondary)
 
                 if manager.securityCounters.sensitiveContentBlocked > 0 {
                     Label("\(manager.securityCounters.sensitiveContentBlocked) sensitive blocked", systemImage: "shield.slash")
@@ -227,6 +262,12 @@ struct ContentView: View {
 
                 if manager.securityCounters.expiredEntriesRemoved > 0 {
                     Label("\(manager.securityCounters.expiredEntriesRemoved) expired", systemImage: "timer")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                if manager.securityCounters.privacyPauses > 0 {
+                    Label("\(manager.securityCounters.privacyPauses) privacy pauses", systemImage: "pause.shield")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -274,6 +315,11 @@ struct ContentView: View {
                                 sourceAppName: manager.sourceApplicationName(for: item),
                                 onCopy: { manager.copyToClipboard(item) },
                                 onCopyPlainText: supportsPlainTextCopy(for: item) ? { manager.copyAsPlainText(item) } : nil,
+                                onCopyCleanText: supportsPlainTextCopy(for: item) ? { manager.copyCleanText(item) } : nil,
+                                onCopyMarkdown: supportsMarkdownCopy(for: item) ? { manager.copyAsMarkdown(item) } : nil,
+                                onOpenURL: item.type == .url ? { manager.openURL(item) } : nil,
+                                onSearchWeb: supportsPlainTextCopy(for: item) ? { manager.searchWeb(for: item) } : nil,
+                                onShowQRCode: supportsPlainTextCopy(for: item) ? { qrCodeText = manager.qrCodeText(for: item) } : nil,
                                 onTogglePin: { manager.togglePin(itemID: item.id) },
                                 onDelete: { manager.remove(itemID: item.id) }
                             )
@@ -379,6 +425,19 @@ struct ContentView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
+
+                                if !item.tags.isEmpty {
+                                    HStack(spacing: 6) {
+                                        ForEach(item.tags, id: \.self) { tag in
+                                            Text("#\(tag)")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                                .padding(.vertical, 2)
+                                                .padding(.horizontal, 6)
+                                                .background(Color.secondary.opacity(0.12), in: Capsule())
+                                        }
+                                    }
+                                }
                             }
 
                             Spacer()
@@ -422,6 +481,26 @@ struct ContentView: View {
                                     Label("Copy as Plain Text", systemImage: "text.cursor")
                                 }
                                 .buttonStyle(.bordered)
+
+                                Menu {
+                                    Button("Copy Clean Text") {
+                                        manager.copyCleanText(item)
+                                    }
+                                    if supportsMarkdownCopy(for: item) {
+                                        Button("Copy as Markdown") {
+                                            manager.copyAsMarkdown(item)
+                                        }
+                                    }
+                                    Button("Search Web") {
+                                        manager.searchWeb(for: item)
+                                    }
+                                    Button("Show QR Code") {
+                                        qrCodeText = manager.qrCodeText(for: item)
+                                    }
+                                } label: {
+                                    Label("Actions", systemImage: "wand.and.sparkles")
+                                }
+                                .buttonStyle(.bordered)
                             }
 
                             Button(item.isPinned ? "Unpin" : "Pin") {
@@ -432,6 +511,13 @@ struct ContentView: View {
                             if item.type == .file {
                                 Button("Reveal in Finder") {
                                     manager.revealFiles(of: item)
+                                }
+                                .buttonStyle(.bordered)
+                            }
+
+                            if item.type == .url {
+                                Button("Open URL") {
+                                    manager.openURL(item)
                                 }
                                 .buttonStyle(.bordered)
                             }
@@ -473,6 +559,8 @@ struct ContentView: View {
 
             TextField("Snippet title", text: $snippetTitle)
 
+            TextField("Tags", text: $snippetTags)
+
             Text("Snippet body")
                 .font(.subheadline.weight(.semibold))
 
@@ -492,7 +580,11 @@ struct ContentView: View {
                 Spacer()
 
                 Button("Save Snippet") {
-                    manager.addSnippet(title: snippetTitle, body: snippetBody)
+                    manager.addSnippet(
+                        title: snippetTitle,
+                        body: snippetBody,
+                        tags: ClipboardHistoryItem.parseTags(snippetTags)
+                    )
                     resetSnippetComposer()
                 }
                 .buttonStyle(.borderedProminent)
@@ -500,7 +592,35 @@ struct ContentView: View {
             }
         }
         .padding(18)
-        .frame(width: 480, height: 330)
+        .frame(width: 480, height: 370)
+    }
+
+    private var qrCodeSheet: some View {
+        VStack(spacing: 14) {
+            Text("QR Code")
+                .font(.title3.bold())
+
+            if let qrCodeText, let image = qrImage(from: qrCodeText) {
+                Image(nsImage: image)
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 260, height: 260)
+
+                Text(qrCodeText.previewSnippet(maxLength: 120))
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .textSelection(.enabled)
+            }
+
+            Button("Close") {
+                qrCodeText = nil
+            }
+            .keyboardShortcut(.cancelAction)
+        }
+        .padding(20)
+        .frame(width: 340, height: 390)
     }
 
     @ViewBuilder
@@ -531,6 +651,10 @@ struct ContentView: View {
                         Text(item.preview)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
+
+                        Text(ByteCountFormatter.string(fromByteCount: Int64(item.byteSize), countStyle: .file))
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
                     }
                 }
             } else {
@@ -546,10 +670,20 @@ struct ContentView: View {
                                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
                             } label: {
                                 HStack(spacing: 8) {
-                                    Image(systemName: "doc")
-                                        .foregroundStyle(.secondary)
-                                    Text(path)
-                                        .lineLimit(1)
+                                    Image(nsImage: NSWorkspace.shared.icon(forFile: path))
+                                        .resizable()
+                                        .frame(width: 24, height: 24)
+
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(URL(fileURLWithPath: path).lastPathComponent)
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .lineLimit(1)
+
+                                        Text(fileMetadataSummary(for: path))
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                    }
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, 8)
@@ -635,10 +769,65 @@ struct ContentView: View {
     private func resetSnippetComposer() {
         snippetTitle = ""
         snippetBody = ""
+        snippetTags = ""
         isShowingSnippetComposer = false
     }
 
     private func supportsPlainTextCopy(for item: ClipboardHistoryItem) -> Bool {
         item.type != .image
+    }
+
+    private func supportsMarkdownCopy(for item: ClipboardHistoryItem) -> Bool {
+        item.type != .image
+    }
+
+    private var monitoringStatusLabel: String {
+        if let privacyPauseStatus = manager.privacyPauseStatus {
+            return "Privacy paused \(privacyPauseStatus)"
+        }
+        return manager.isMonitoringEnabled ? "Monitoring on" : "Monitoring paused"
+    }
+
+    private var monitoringStatusIcon: String {
+        if manager.isPrivacyPaused {
+            return "pause.shield"
+        }
+        return manager.isMonitoringEnabled ? "waveform" : "pause.fill"
+    }
+
+    private func fileMetadataSummary(for path: String) -> String {
+        let url = URL(fileURLWithPath: path)
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: path) else {
+            return url.path
+        }
+
+        var parts = [url.path]
+        if let fileSize = attributes[.size] as? NSNumber {
+            parts.append(ByteCountFormatter.string(fromByteCount: fileSize.int64Value, countStyle: .file))
+        }
+        if let modifiedAt = attributes[.modificationDate] as? Date {
+            parts.append(modifiedAt.formatted(date: .abbreviated, time: .omitted))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func qrImage(from text: String) -> NSImage? {
+        guard let data = text.data(using: .utf8) else {
+            return nil
+        }
+
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = data
+        filter.correctionLevel = "M"
+
+        guard let outputImage = filter.outputImage else {
+            return nil
+        }
+
+        let scaledImage = outputImage.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
+        let representation = NSCIImageRep(ciImage: scaledImage)
+        let image = NSImage(size: representation.size)
+        image.addRepresentation(representation)
+        return image
     }
 }

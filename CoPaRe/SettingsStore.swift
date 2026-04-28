@@ -73,6 +73,13 @@ enum SecurityPreset: String, CaseIterable, Identifiable {
     }
 }
 
+struct AppCaptureRule: Equatable {
+    let bundleIdentifier: String
+    let ignoresCapture: Bool
+    let textOnly: Bool
+    let ttl: ClipboardItemTTL?
+}
+
 @MainActor
 final class SettingsStore: ObservableObject {
     private enum Keys {
@@ -91,6 +98,9 @@ final class SettingsStore: ObservableObject {
         static let globalShortcutEnabled = "globalShortcutEnabled"
         static let securityPreset = "securityPreset"
         static let onboardingCompleted = "onboardingCompleted"
+        static let appCaptureRulesRawText = "appCaptureRulesRawText"
+        static let perAppHistoryLimit = "perAppHistoryLimit"
+        static let maskedContentTTL = "maskedContentTTL"
     }
 
     private let defaults: UserDefaults
@@ -165,6 +175,17 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    @Published var appCaptureRulesRawText: String {
+        didSet {
+            let normalized = Self.normalizeRulesText(appCaptureRulesRawText)
+            if normalized != appCaptureRulesRawText {
+                appCaptureRulesRawText = normalized
+                return
+            }
+            persist(normalized, key: Keys.appCaptureRulesRawText, oldValue: oldValue)
+        }
+    }
+
     @Published var itemTTL: ClipboardItemTTL {
         didSet {
             guard itemTTL != oldValue else {
@@ -174,6 +195,29 @@ final class SettingsStore: ObservableObject {
             if !isApplyingPreset {
                 onChange?()
             }
+        }
+    }
+
+    @Published var maskedContentTTL: ClipboardItemTTL {
+        didSet {
+            guard maskedContentTTL != oldValue else {
+                return
+            }
+            defaults.set(maskedContentTTL.rawValue, forKey: Keys.maskedContentTTL)
+            if !isApplyingPreset {
+                onChange?()
+            }
+        }
+    }
+
+    @Published var perAppHistoryLimit: Int {
+        didSet {
+            let normalized = perAppHistoryLimit.clamped(to: 5...500)
+            if normalized != perAppHistoryLimit {
+                perAppHistoryLimit = normalized
+                return
+            }
+            persist(perAppHistoryLimit, key: Keys.perAppHistoryLimit, oldValue: oldValue)
         }
     }
 
@@ -239,7 +283,10 @@ final class SettingsStore: ObservableObject {
         excludedAppsRawText = Self.normalizeExcludedAppsText(
             defaults.string(forKey: Keys.excludedAppsRawText) ?? Self.defaultExcludedApps
         )
+        appCaptureRulesRawText = Self.normalizeRulesText(defaults.string(forKey: Keys.appCaptureRulesRawText) ?? "")
         itemTTL = ClipboardItemTTL(rawValue: defaults.string(forKey: Keys.itemTTL) ?? "") ?? .never
+        maskedContentTTL = ClipboardItemTTL(rawValue: defaults.string(forKey: Keys.maskedContentTTL) ?? "") ?? .fiveMinutes
+        perAppHistoryLimit = defaults.object(forKey: Keys.perAppHistoryLimit) as? Int ?? 80
         oneTimeCopyEnabled = defaults.object(forKey: Keys.oneTimeCopyEnabled) as? Bool ?? false
         lockProtectionEnabled = defaults.object(forKey: Keys.lockProtectionEnabled) as? Bool ?? false
         imageOCRIndexingEnabled = defaults.object(forKey: Keys.imageOCRIndexingEnabled) as? Bool ?? false
@@ -297,6 +344,30 @@ final class SettingsStore: ObservableObject {
         return unique.joined(separator: "\n")
     }
 
+    private static func normalizeRulesText(_ text: String) -> String {
+        let normalizedLines = text
+            .components(separatedBy: .newlines)
+            .map { line in
+                line
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+                    .replacingOccurrences(of: " = ", with: " ")
+                    .replacingOccurrences(of: "=", with: " ")
+            }
+            .filter { !$0.isEmpty && !$0.hasPrefix("#") }
+
+        var seenBundles = Set<String>()
+        return normalizedLines.compactMap { line in
+            guard let bundle = line.split(whereSeparator: { $0.isWhitespace }).first.map(String.init),
+                  seenBundles.insert(bundle).inserted
+            else {
+                return nil
+            }
+            return line
+        }
+        .joined(separator: "\n")
+    }
+
     var excludedBundleIdentifiers: Set<String> {
         Set(
             excludedAppsRawText
@@ -304,6 +375,92 @@ final class SettingsStore: ObservableObject {
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
                 .filter { !$0.isEmpty }
         )
+    }
+
+    var appCaptureRules: [String: AppCaptureRule] {
+        var rules: [String: AppCaptureRule] = [:]
+
+        for line in appCaptureRulesRawText.components(separatedBy: .newlines) {
+            let normalizedLine = line
+                .replacingOccurrences(of: "=", with: " ")
+                .replacingOccurrences(of: ",", with: " ")
+                .replacingOccurrences(of: ";", with: " ")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            let tokens = normalizedLine
+                .split(whereSeparator: { $0.isWhitespace })
+                .map { $0.lowercased() }
+
+            guard let bundleIdentifier = tokens.first, !bundleIdentifier.isEmpty else {
+                continue
+            }
+
+            var ignoresCapture = false
+            var textOnly = false
+            var ttl: ClipboardItemTTL?
+
+            for token in tokens.dropFirst() {
+                switch token {
+                case "ignore", "block", "off", "skip":
+                    ignoresCapture = true
+                case "text-only", "textonly", "text":
+                    textOnly = true
+                case "never":
+                    ttl = .never
+                case "30s", "30sec", "30seconds":
+                    ttl = .thirtySeconds
+                case "5m", "5min", "5minutes":
+                    ttl = .fiveMinutes
+                case "15m", "15min", "15minutes":
+                    ttl = .fifteenMinutes
+                case "1h", "1hour":
+                    ttl = .oneHour
+                case "1d", "1day":
+                    ttl = .oneDay
+                default:
+                    if token.hasPrefix("ttl:") || token.hasPrefix("ttl-") {
+                        ttl = Self.ttl(fromRuleToken: String(token.dropFirst(4)))
+                    } else if token.hasPrefix("ttl") {
+                        ttl = Self.ttl(fromRuleToken: String(token.dropFirst(3)))
+                    }
+                }
+            }
+
+            rules[bundleIdentifier] = AppCaptureRule(
+                bundleIdentifier: bundleIdentifier,
+                ignoresCapture: ignoresCapture,
+                textOnly: textOnly,
+                ttl: ttl
+            )
+        }
+
+        return rules
+    }
+
+    func appCaptureRule(for bundleIdentifier: String?) -> AppCaptureRule? {
+        guard let bundleIdentifier = bundleIdentifier?.lowercased() else {
+            return nil
+        }
+        return appCaptureRules[bundleIdentifier]
+    }
+
+    private static func ttl(fromRuleToken rawToken: String) -> ClipboardItemTTL? {
+        switch rawToken.trimmingCharacters(in: CharacterSet(charactersIn: ":=- ")) {
+        case "never":
+            return .never
+        case "30s", "30sec", "30seconds":
+            return .thirtySeconds
+        case "5m", "5min", "5minutes":
+            return .fiveMinutes
+        case "15m", "15min", "15minutes":
+            return .fifteenMinutes
+        case "1h", "1hour":
+            return .oneHour
+        case "1d", "1day":
+            return .oneDay
+        default:
+            return nil
+        }
     }
 
     func applySecurityPreset(_ preset: SecurityPreset, markOnboardingCompleted: Bool = false) {
@@ -324,6 +481,8 @@ final class SettingsStore: ObservableObject {
             oneTimeCopyEnabled = false
             lockProtectionEnabled = false
             itemTTL = .never
+            maskedContentTTL = .fiveMinutes
+            perAppHistoryLimit = 80
         case .strict:
             filterSensitiveContent = true
             persistHistory = true
@@ -333,6 +492,8 @@ final class SettingsStore: ObservableObject {
             oneTimeCopyEnabled = true
             lockProtectionEnabled = true
             itemTTL = .fiveMinutes
+            maskedContentTTL = .thirtySeconds
+            perAppHistoryLimit = 25
         }
 
         if markOnboardingCompleted {

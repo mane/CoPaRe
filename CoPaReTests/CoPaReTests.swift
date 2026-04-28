@@ -79,6 +79,12 @@ struct CoPaReTests {
         #expect(ClipboardItemTTL.oneHour.interval == 3_600)
     }
 
+    @Test func clipboardTagsNormalizeAndDeduplicate() {
+        let tags = ClipboardHistoryItem.parseTags(" Work, #Swift; work\nPrivacy ")
+
+        #expect(tags == ["work", "swift", "privacy"])
+    }
+
     @MainActor
     @Test func settingsNormalizeExcludedApps() {
         let suiteName = "io.copare.tests.\(UUID().uuidString)"
@@ -93,6 +99,27 @@ struct CoPaReTests {
         #expect(settings.excludedBundleIdentifiers.contains("com.1password.1password"))
         #expect(settings.excludedBundleIdentifiers.contains("com.bitwarden.desktop"))
         #expect(settings.excludedBundleIdentifiers.count == 2)
+    }
+
+    @MainActor
+    @Test func settingsParsePerAppCaptureRules() {
+        let suiteName = "io.copare.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let settings = SettingsStore(defaults: defaults)
+        settings.appCaptureRulesRawText = """
+        com.example.secret ignore
+        com.example.editor text-only ttl:15m
+        com.example.chat 5m
+        """
+
+        #expect(settings.appCaptureRule(for: "com.example.secret")?.ignoresCapture == true)
+        #expect(settings.appCaptureRule(for: "com.example.editor")?.textOnly == true)
+        #expect(settings.appCaptureRule(for: "com.example.editor")?.ttl == .fifteenMinutes)
+        #expect(settings.appCaptureRule(for: "com.example.chat")?.ttl == .fiveMinutes)
     }
 
     @MainActor
@@ -111,6 +138,26 @@ struct CoPaReTests {
         manager.addSnippet(title: "", body: body)
 
         #expect(manager.items.first?.decryptedPayload()?.plainText == body)
+    }
+
+    @MainActor
+    @Test func snippetsStoreNormalizedTags() {
+        let suiteName = "io.copare.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.set(false, forKey: "persistHistory")
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let settings = SettingsStore(defaults: defaults)
+        let manager = ClipboardManager(settings: settings)
+
+        manager.addSnippet(title: "Tagged", body: "body", tags: ["Work", "#swift", "work"])
+
+        #expect(manager.items.first?.tags == ["work", "swift"])
+        #expect(manager.filteredItems.first?.preview == "Tagged")
+        manager.searchText = "#swift"
+        #expect(manager.filteredItems.first?.preview == "Tagged")
     }
 
 }

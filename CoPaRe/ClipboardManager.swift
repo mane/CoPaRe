@@ -36,6 +36,7 @@ struct SecurityEventCounters: Equatable {
     var expiredEntriesRemoved = 0
     var secureWipes = 0
     var unlockEvents = 0
+    var privacyPauses = 0
 
     var totalBlocked: Int {
         sensitiveContentBlocked + excludedApplicationSkips
@@ -64,12 +65,28 @@ private struct LockedClipboardSnapshotItem: Codable {
     let origin: ClipboardItemOrigin
     let captureCount: Int
     let sourceBundleIdentifier: String?
+    let tags: [String]
 }
 
 private struct LockedClipboardEnvelope {
     let nonce: Data
     let ciphertext: Data
     let tag: Data
+}
+
+private struct SnippetExportDocument: Codable {
+    let version: Int
+    let exportedAt: Date
+    let snippets: [SnippetExportItem]
+}
+
+private struct SnippetExportItem: Codable {
+    let title: String
+    let body: String
+    let tags: [String]
+    let createdAt: Date
+    let updatedAt: Date
+    let pinned: Bool
 }
 
 @MainActor
@@ -88,6 +105,7 @@ final class ClipboardManager: ObservableObject {
     @Published private(set) var savedSnippetsLoaded = true
     @Published private(set) var secureWipeMessage: String?
     @Published private(set) var secureWipeFailed = false
+    @Published private(set) var privacyPauseUntil: Date?
 
     let settings: SettingsStore
 
@@ -102,6 +120,7 @@ final class ClipboardManager: ObservableObject {
 
     private var persistTask: Task<Void, Never>?
     private var expirationTimer: Timer?
+    private var privacyPauseTimer: Timer?
     private var lockedSnapshotEnvelope: LockedClipboardEnvelope?
 
     init(
@@ -141,6 +160,7 @@ final class ClipboardManager: ObservableObject {
     deinit {
         persistTask?.cancel()
         expirationTimer?.invalidate()
+        privacyPauseTimer?.invalidate()
     }
 
     var filteredItems: [ClipboardHistoryItem] {
@@ -175,6 +195,9 @@ final class ClipboardManager: ObservableObject {
             if item.preview.lowercased().contains(query) {
                 return true
             }
+            if item.tags.contains(where: { $0.contains(query) || "#\($0)".contains(query) }) {
+                return true
+            }
             if let searchIndex = item.searchIndex?.lowercased(), searchIndex.contains(query) {
                 return true
             }
@@ -187,6 +210,25 @@ final class ClipboardManager: ObservableObject {
             return []
         }
         return Array(items.prefix(8))
+    }
+
+    var isPrivacyPaused: Bool {
+        guard let privacyPauseUntil else {
+            return false
+        }
+        return privacyPauseUntil > Date()
+    }
+
+    var privacyPauseStatus: String? {
+        guard let privacyPauseUntil, privacyPauseUntil > Date() else {
+            return nil
+        }
+
+        let remaining = max(0, Int(privacyPauseUntil.timeIntervalSinceNow.rounded(.up)))
+        if remaining >= 60 {
+            return "\(Int(ceil(Double(remaining) / 60.0)))m"
+        }
+        return "\(remaining)s"
     }
 
     func item(with id: UUID?) -> ClipboardHistoryItem? {
@@ -228,8 +270,82 @@ final class ClipboardManager: ObservableObject {
         }
     }
 
+    func copyCleanText(_ item: ClipboardHistoryItem) {
+        guard !isLocked, let text = plainTextRepresentation(for: item)?.condensingWhitespace(), !text.isEmpty else {
+            return
+        }
+
+        captureService.writeString(text)
+        if settings.oneTimeCopyEnabled, !item.isPinned, !item.isSnippet {
+            remove(itemID: item.id, immediatelyPersist: true)
+        }
+    }
+
+    func copyAsMarkdown(_ item: ClipboardHistoryItem) {
+        guard !isLocked, let markdown = markdownRepresentation(for: item) else {
+            return
+        }
+
+        captureService.writeString(markdown)
+        if settings.oneTimeCopyEnabled, !item.isPinned, !item.isSnippet {
+            remove(itemID: item.id, immediatelyPersist: true)
+        }
+    }
+
+    func openURL(_ item: ClipboardHistoryItem) {
+        guard !isLocked, let url = urlRepresentation(for: item) else {
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+
+    func searchWeb(for item: ClipboardHistoryItem) {
+        guard !isLocked,
+              let query = plainTextRepresentation(for: item)?.previewSnippet(maxLength: 300),
+              !query.isEmpty
+        else {
+            return
+        }
+
+        var components = URLComponents(string: "https://www.google.com/search")
+        components?.queryItems = [URLQueryItem(name: "q", value: query)]
+        guard let url = components?.url else {
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+
+    func qrCodeText(for item: ClipboardHistoryItem) -> String? {
+        guard !isLocked else {
+            return nil
+        }
+
+        if let url = urlRepresentation(for: item)?.absoluteString {
+            return url
+        }
+        return plainTextRepresentation(for: item)
+    }
+
     func toggleMonitoring() {
         isMonitoringEnabled.toggle()
+    }
+
+    func pauseCapture(for duration: TimeInterval) {
+        guard duration > 0 else {
+            return
+        }
+
+        privacyPauseUntil = Date().addingTimeInterval(duration)
+        mutateSecurityCounters { $0.privacyPauses += 1 }
+        configurePrivacyPauseTimer()
+        syncCaptureServiceMonitoringState()
+    }
+
+    func resumeCapture() {
+        privacyPauseUntil = nil
+        privacyPauseTimer?.invalidate()
+        privacyPauseTimer = nil
+        syncCaptureServiceMonitoringState()
     }
 
     func lock() {
@@ -293,7 +409,12 @@ final class ClipboardManager: ObservableObject {
 
         if items[index].isPinned {
             items[index].pinnedAt = nil
-            items[index].expiresAt = expirationDate(for: items[index].origin, from: Date())
+            items[index].expiresAt = expirationDate(
+                for: items[index].origin,
+                from: Date(),
+                sourceBundleIdentifier: items[index].sourceBundleIdentifier,
+                preview: items[index].preview
+            )
         } else {
             items[index].pinnedAt = Date()
             items[index].expiresAt = nil
@@ -365,21 +486,128 @@ final class ClipboardManager: ObservableObject {
         savedSnippetsLoaded = true
     }
 
-    func addSnippet(title: String, body: String) {
+    func addSnippet(title: String, body: String, tags: [String] = []) {
         guard !isLocked else {
             return
         }
 
+        let now = Date()
+        guard let item = makeSnippet(title: title, body: body, tags: tags, createdAt: now, updatedAt: now) else {
+            return
+        }
+
+        items.insert(item, at: 0)
+        sortAndTrim()
+        scheduleSnippetPersist(immediately: true)
+    }
+
+    func exportSnippets(to url: URL) -> Bool {
+        let exportItems = items
+            .filter(\.isSnippet)
+            .compactMap { item -> SnippetExportItem? in
+                guard let plainText = item.decryptedPayload()?.plainText else {
+                    return nil
+                }
+
+                return SnippetExportItem(
+                    title: item.preview,
+                    body: plainText,
+                    tags: item.tags,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt,
+                    pinned: item.isPinned
+                )
+            }
+
+        let document = SnippetExportDocument(
+            version: 1,
+            exportedAt: Date(),
+            snippets: exportItems
+        )
+
+        do {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            encoder.dateEncodingStrategy = .iso8601
+            let data = try encoder.encode(document)
+            try data.write(to: url, options: .atomic)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    @discardableResult
+    func importSnippets(from url: URL) -> Int {
+        guard !isLocked else {
+            return 0
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let document = try decoder.decode(SnippetExportDocument.self, from: data)
+
+            let existingDigests = Set(items.filter(\.isSnippet).map(\.digest))
+            var imported = [ClipboardHistoryItem]()
+            var importedDigests = Set<String>()
+
+            for snippet in document.snippets {
+                guard let item = makeSnippet(
+                    title: snippet.title,
+                    body: snippet.body,
+                    tags: snippet.tags,
+                    createdAt: snippet.createdAt,
+                    updatedAt: snippet.updatedAt
+                ) else {
+                    continue
+                }
+
+                guard !existingDigests.contains(item.digest),
+                      importedDigests.insert(item.digest).inserted
+                else {
+                    continue
+                }
+
+                var mutableItem = item
+                if snippet.pinned {
+                    mutableItem.pinnedAt = snippet.updatedAt
+                }
+                imported.append(mutableItem)
+            }
+
+            guard !imported.isEmpty else {
+                return 0
+            }
+
+            items.insert(contentsOf: imported, at: 0)
+            sortAndTrim()
+            scheduleSnippetPersist(immediately: true)
+            return imported.count
+        } catch {
+            return 0
+        }
+    }
+
+    private func makeSnippet(
+        title: String,
+        body: String,
+        tags: [String],
+        createdAt: Date,
+        updatedAt: Date
+    ) -> ClipboardHistoryItem? {
         let normalizedBody = body
             .replacingOccurrences(of: "\u{0000}", with: "")
 
         guard !normalizedBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return
+            return nil
         }
 
         let normalizedTitle = title
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .previewSnippet(maxLength: 80)
+        let normalizedTags = ClipboardHistoryItem.normalizedTags(tags)
 
         let preview: String
         if normalizedTitle.isEmpty {
@@ -398,30 +626,30 @@ final class ClipboardManager: ObservableObject {
         )
 
         guard let encryptedPayload = try? EncryptedClipboardPayload.seal(payload) else {
-            return
+            return nil
         }
 
-        let now = Date()
-        let item = ClipboardHistoryItem(
+        let searchTerms = ([preview] + normalizedTags.map { "#\($0)" })
+            .joined(separator: " ")
+            .condensingWhitespace()
+
+        return ClipboardHistoryItem(
             type: .text,
-            createdAt: now,
-            updatedAt: now,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
             pinnedAt: nil,
             expiresAt: nil,
             preview: preview,
-            searchIndex: String(preview.prefix(120)),
+            searchIndex: String(searchTerms.prefix(160)),
             thumbnailPNGData: nil,
             encryptedPayload: encryptedPayload,
-            digest: digest(for: "snippet:\(preview)\n\(normalizedBody)"),
+            digest: digest(for: "snippet:\(preview)\n\(normalizedBody)\n\(normalizedTags.joined(separator: ","))"),
             byteSize: Data(normalizedBody.utf8).count,
             origin: .snippet,
             captureCount: 1,
-            sourceBundleIdentifier: nil
+            sourceBundleIdentifier: nil,
+            tags: normalizedTags
         )
-
-        items.insert(item, at: 0)
-        sortAndTrim()
-        scheduleSnippetPersist(immediately: true)
     }
 
     func revealFiles(of item: ClipboardHistoryItem) {
@@ -467,7 +695,12 @@ final class ClipboardManager: ObservableObject {
         }
 
         let now = Date()
-        let expirationDate = expirationDate(for: .captured, from: now)
+        let expirationDate = expirationDate(
+            for: .captured,
+            from: now,
+            sourceBundleIdentifier: capture.sourceBundleIdentifier,
+            preview: capture.preview
+        )
 
         if let existingIndex = items.firstIndex(where: { $0.digest == capture.digest && $0.type == capture.type }) {
             items[existingIndex].updatedAt = now
@@ -505,7 +738,12 @@ final class ClipboardManager: ObservableObject {
         configureExpirationTimer()
 
         for index in items.indices where !items[index].isSnippet && !items[index].isPinned {
-            items[index].expiresAt = expirationDate(for: items[index].origin, from: items[index].updatedAt)
+            items[index].expiresAt = expirationDate(
+                for: items[index].origin,
+                from: items[index].updatedAt,
+                sourceBundleIdentifier: items[index].sourceBundleIdentifier,
+                preview: items[index].preview
+            )
         }
 
         if settings.lockProtectionEnabled {
@@ -559,7 +797,13 @@ final class ClipboardManager: ObservableObject {
         expirationTimer?.invalidate()
         expirationTimer = nil
 
-        guard let ttl = settings.itemTTL.interval, ttl > 0 else {
+        var candidateIntervals = [
+            settings.itemTTL.interval,
+            settings.maskedContentTTL.interval,
+        ].compactMap { $0 }
+        candidateIntervals.append(contentsOf: settings.appCaptureRules.values.compactMap { $0.ttl?.interval })
+
+        guard let ttl = candidateIntervals.min(), ttl > 0 else {
             return
         }
 
@@ -572,6 +816,24 @@ final class ClipboardManager: ObservableObject {
         timer.tolerance = min(5.0, interval * 0.25)
         RunLoop.main.add(timer, forMode: .common)
         expirationTimer = timer
+    }
+
+    private func configurePrivacyPauseTimer() {
+        privacyPauseTimer?.invalidate()
+        privacyPauseTimer = nil
+
+        guard let privacyPauseUntil else {
+            return
+        }
+
+        let remaining = max(0.25, privacyPauseUntil.timeIntervalSinceNow)
+        let timer = Timer(timeInterval: remaining, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.resumeCapture()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        privacyPauseTimer = timer
     }
 
     private func handleExpirationSweep() {
@@ -611,19 +873,48 @@ final class ClipboardManager: ObservableObject {
                 (lhs.pinnedAt ?? lhs.updatedAt) > (rhs.pinnedAt ?? rhs.updatedAt)
             }
 
-        let regular = items
+        let regularCandidates = items
             .filter { !$0.isPinned && !$0.isSnippet }
             .sorted { $0.updatedAt > $1.updatedAt }
+
+        var perAppCounts: [String: Int] = [:]
+        let perAppLimit = max(1, settings.perAppHistoryLimit)
+        let regular = regularCandidates.filter { item in
+            let key = item.sourceBundleIdentifier ?? "__unknown__"
+            let count = perAppCounts[key, default: 0]
+            guard count < perAppLimit else {
+                return false
+            }
+            perAppCounts[key] = count + 1
+            return true
+        }
 
         items = snippets + pinned + Array(regular.prefix(settings.historyLimit))
     }
 
-    private func expirationDate(for origin: ClipboardItemOrigin, from date: Date) -> Date? {
-        guard origin == .captured, let ttl = settings.itemTTL.interval else {
+    private func expirationDate(
+        for origin: ClipboardItemOrigin,
+        from date: Date,
+        sourceBundleIdentifier: String?,
+        preview: String
+    ) -> Date? {
+        guard origin == .captured else {
             return nil
         }
 
-        return date.addingTimeInterval(ttl)
+        let baseTTL = settings.appCaptureRule(for: sourceBundleIdentifier)?.ttl ?? settings.itemTTL
+        var interval = baseTTL.interval
+        if (preview.localizedCaseInsensitiveContains("sensitive") || SensitiveContentDetector.shouldMaskPreview(text: preview)),
+           let sensitiveInterval = settings.maskedContentTTL.interval
+        {
+            interval = min(interval ?? sensitiveInterval, sensitiveInterval)
+        }
+
+        guard let interval else {
+            return nil
+        }
+
+        return date.addingTimeInterval(interval)
     }
 
     private func scheduleSnippetPersist(immediately: Bool = false) {
@@ -664,6 +955,54 @@ final class ClipboardManager: ObservableObject {
         }
     }
 
+    private func plainTextRepresentation(for item: ClipboardHistoryItem) -> String? {
+        let payload = item.decryptedPayload()
+        switch item.type {
+        case .text, .url:
+            return payload?.plainText
+        case .file:
+            guard let filePaths = payload?.filePaths, !filePaths.isEmpty else {
+                return nil
+            }
+            return filePaths.joined(separator: "\n")
+        case .image:
+            return nil
+        }
+    }
+
+    private func urlRepresentation(for item: ClipboardHistoryItem) -> URL? {
+        guard item.type == .url,
+              let rawText = item.decryptedPayload()?.plainText?.trimmingCharacters(in: .whitespacesAndNewlines)
+        else {
+            return nil
+        }
+        return URL(string: rawText)
+    }
+
+    private func markdownRepresentation(for item: ClipboardHistoryItem) -> String? {
+        switch item.type {
+        case .url:
+            guard let url = urlRepresentation(for: item) else {
+                return nil
+            }
+            let title = item.preview.isEmpty || item.preview.hasPrefix("Sensitive") ? url.absoluteString : item.preview
+            return "[\(title)](\(url.absoluteString))"
+        case .text:
+            return item.decryptedPayload()?.plainText
+        case .file:
+            guard let filePaths = item.decryptedPayload()?.filePaths, !filePaths.isEmpty else {
+                return nil
+            }
+            return filePaths.map { path in
+                let url = URL(fileURLWithPath: path)
+                return "- [\(url.lastPathComponent)](\(url.absoluteString))"
+            }
+            .joined(separator: "\n")
+        case .image:
+            return nil
+        }
+    }
+
     private func digest(for text: String) -> String {
         let data = Data(text.utf8)
         let hash = SHA256.hash(data: data)
@@ -677,7 +1016,13 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func syncCaptureServiceMonitoringState() {
-        captureService.isMonitoringEnabled = isMonitoringEnabled && !isLocked
+        if let privacyPauseUntil, privacyPauseUntil <= Date() {
+            self.privacyPauseUntil = nil
+            privacyPauseTimer?.invalidate()
+            privacyPauseTimer = nil
+        }
+
+        captureService.isMonitoringEnabled = isMonitoringEnabled && !isLocked && privacyPauseUntil == nil
     }
 
     private func prepareLockedSnapshot() -> Bool {
@@ -705,7 +1050,8 @@ final class ClipboardManager: ObservableObject {
                     byteSize: item.byteSize,
                     origin: item.origin,
                     captureCount: item.captureCount,
-                    sourceBundleIdentifier: item.sourceBundleIdentifier
+                    sourceBundleIdentifier: item.sourceBundleIdentifier,
+                    tags: item.tags
                 )
             }
         )
@@ -801,7 +1147,8 @@ final class ClipboardManager: ObservableObject {
                 byteSize: item.byteSize,
                 origin: item.origin,
                 captureCount: item.captureCount,
-                sourceBundleIdentifier: item.sourceBundleIdentifier
+                sourceBundleIdentifier: item.sourceBundleIdentifier,
+                tags: item.tags
             )
         }
     }

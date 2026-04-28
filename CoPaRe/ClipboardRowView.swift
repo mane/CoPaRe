@@ -7,6 +7,11 @@ struct ClipboardRowView: View {
     let sourceAppName: String?
     let onCopy: () -> Void
     let onCopyPlainText: (() -> Void)?
+    let onCopyCleanText: (() -> Void)?
+    let onCopyMarkdown: (() -> Void)?
+    let onOpenURL: (() -> Void)?
+    let onSearchWeb: (() -> Void)?
+    let onShowQRCode: (() -> Void)?
     let onTogglePin: () -> Void
     let onDelete: () -> Void
 
@@ -61,6 +66,10 @@ struct ClipboardRowView: View {
                         Label("\(item.captureCount)x", systemImage: "square.stack.3d.down.forward")
                             .labelStyle(.titleAndIcon)
                     }
+
+                    ForEach(item.tags.prefix(3), id: \.self) { tag in
+                        Text("#\(tag)")
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -91,6 +100,21 @@ struct ClipboardRowView: View {
             Button("Copy") { onCopy() }
             if let onCopyPlainText {
                 Button("Copy as Plain Text") { onCopyPlainText() }
+            }
+            if let onCopyCleanText {
+                Button("Copy Clean Text") { onCopyCleanText() }
+            }
+            if let onCopyMarkdown {
+                Button("Copy as Markdown") { onCopyMarkdown() }
+            }
+            if let onOpenURL {
+                Button("Open URL") { onOpenURL() }
+            }
+            if let onSearchWeb {
+                Button("Search Web") { onSearchWeb() }
+            }
+            if let onShowQRCode {
+                Button("Show QR Code") { onShowQRCode() }
             }
             Button(item.isPinned ? "Unpin" : "Pin") { onTogglePin() }
             Divider()
