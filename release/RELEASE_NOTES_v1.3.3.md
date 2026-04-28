@@ -6,7 +6,6 @@ CoPaRe 1.3.3 is a small UX polish release focused on menu bar behavior.
 
 - CoPaRe now runs as a true menu bar app and no longer stays visible in the Dock.
 - Opening the main window from the menu bar or the global shortcut still works as before.
-- The App Store build now matches the same menu bar-only behavior.
 
 ## Upgrade notes
 

@@ -111,16 +111,32 @@ struct KeychainKeyProvider {
         Self.cacheLock.lock()
         defer { Self.cacheLock.unlock() }
 
+        var firstFailure: OSStatus?
+        for useDataProtectionKeychain in [true, false] {
+            do {
+                try deleteKey(useDataProtectionKeychain: useDataProtectionKeychain)
+            } catch KeychainKeyProviderError.keychainFailure(let status) {
+                firstFailure = firstFailure ?? status
+            }
+        }
+
+        if let firstFailure {
+            throw KeychainKeyProviderError.keychainFailure(firstFailure)
+        }
+
+        clearCacheAndMarkMigration()
+    }
+
+    private nonisolated func deleteKey(useDataProtectionKeychain: Bool) throws {
         let baseQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
-            kSecUseDataProtectionKeychain as String: true,
+            kSecUseDataProtectionKeychain as String: useDataProtectionKeychain,
         ]
 
         let directDeleteStatus = SecItemDelete(baseQuery as CFDictionary)
         if directDeleteStatus == errSecSuccess || directDeleteStatus == errSecItemNotFound {
-            clearCacheAndMarkMigration()
             return
         }
 
@@ -135,7 +151,6 @@ struct KeychainKeyProvider {
                 throw KeychainKeyProviderError.keychainFailure(authenticatedDeleteStatus)
             }
 
-            clearCacheAndMarkMigration()
             return
         }
 

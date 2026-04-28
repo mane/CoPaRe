@@ -95,4 +95,22 @@ struct CoPaReTests {
         #expect(settings.excludedBundleIdentifiers.count == 2)
     }
 
+    @MainActor
+    @Test func snippetsPreserveUserWhitespace() {
+        let suiteName = "io.copare.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.set(false, forKey: "persistHistory")
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let settings = SettingsStore(defaults: defaults)
+        let manager = ClipboardManager(settings: settings)
+        let body = "  indented value\n"
+
+        manager.addSnippet(title: "", body: body)
+
+        #expect(manager.items.first?.decryptedPayload()?.plainText == body)
+    }
+
 }

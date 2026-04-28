@@ -187,9 +187,9 @@ final class ClipboardCaptureService {
 
         let sanitized = rawText
             .replacingOccurrences(of: "\u{0000}", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !sanitized.isEmpty else {
+        let trimmedForValidation = sanitized.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedForValidation.isEmpty else {
             return nil
         }
 
@@ -199,13 +199,18 @@ final class ClipboardCaptureService {
         }
 
         let textToStore = String(sanitized.prefix(maxTextCharacters))
+        guard !textToStore.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
         let data = Data(textToStore.utf8)
         guard data.count <= maxPayloadBytes else {
             return nil
         }
 
         let type: ClipboardItemType
-        if let url = URL(string: textToStore), url.scheme != nil {
+        let trimmedForClassification = textToStore.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = URL(string: trimmedForClassification), url.scheme != nil {
             type = .url
         } else {
             type = .text

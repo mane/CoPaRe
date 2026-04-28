@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.3.8] - 2026-04-28
+
+### Changed
+
+- Kept GitHub distribution focused on the manually installed CoPaRe app and signed Sparkle update flow.
+
+### Fixed
+
+- Preserved leading and trailing whitespace for captured text and saved snippets so copied code and formatted text round-trip correctly.
+- Improved secure wipe coverage by deleting both current and legacy Keychain-backed snippet keys.
+
 ## [1.3.7] - 2026-04-01
 
 ### Added
@@ -54,7 +65,6 @@ The format is inspired by Keep a Changelog and this project follows Semantic Ver
 ### Changed
 
 - CoPaRe now runs as a menu bar-only app and no longer shows a Dock icon while it is active.
-- Applied the same menu bar-only launch behavior to the dedicated App Store build so both distribution channels stay aligned.
 
 ## [1.3.2] - 2026-03-06
 
@@ -66,7 +76,7 @@ The format is inspired by Keep a Changelog and this project follows Semantic Ver
 ### Changed
 
 - Added explicit error logging when snippet key cleanup fails during empty-store save flows.
-- Added a shared `CoPaRe` scheme for consistent local/CI `xcodebuild test` execution without App Store target interference.
+- Added a shared `CoPaRe` scheme for consistent local/CI `xcodebuild test` execution.
 
 ## [1.3.1] - 2026-03-05
 
@@ -82,7 +92,6 @@ The format is inspired by Keep a Changelog and this project follows Semantic Ver
 - Masked likely secret/token-like captures in item previews to reduce accidental plaintext exposure in memory/UI.
 - Reduced plaintext indexing scope for copied text/URL entries by keeping search terms limited to app-source metadata.
 - Improved secure wipe UX with explicit confirmation and clear post-action status messaging.
-- Added a dedicated `CoPaReAppStore` target/scheme plus `AppStore` configuration with separate entitlements/Info.plist and App Store update behavior (no in-app Sparkle updater UI, no Sparkle framework linkage in that build).
 
 ### Security
 

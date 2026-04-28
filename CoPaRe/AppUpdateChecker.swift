@@ -1,9 +1,7 @@
 import Combine
 import Foundation
 import OSLog
-#if !APP_STORE
 import Sparkle
-#endif
 
 @MainActor
 final class AppUpdateChecker: NSObject, ObservableObject {
@@ -13,32 +11,20 @@ final class AppUpdateChecker: NSObject, ObservableObject {
     @Published private(set) var allowsAutomaticUpdates = false
     @Published private(set) var isSessionInProgress = false
 
-#if !APP_STORE
     private let logger = Logger(subsystem: "io.copare.app", category: "updates")
     private let updaterController: SPUStandardUpdaterController
     private var cancellables = Set<AnyCancellable>()
-#endif
 
     override init() {
-#if !APP_STORE
         let controller = SPUStandardUpdaterController(updaterDelegate: nil, userDriverDelegate: nil)
         self.updaterController = controller
-#endif
         super.init()
 
-#if !APP_STORE
         bind(to: controller.updater)
 
         if controller.updater.automaticallyChecksForUpdates {
             controller.updater.checkForUpdatesInBackground()
         }
-#else
-        canCheckForUpdates = false
-        automaticallyChecksForUpdates = false
-        automaticallyDownloadsUpdates = false
-        allowsAutomaticUpdates = false
-        isSessionInProgress = false
-#endif
     }
 
     var currentVersion: String {
@@ -54,17 +40,10 @@ final class AppUpdateChecker: NSObject, ObservableObject {
     }
 
     var supportsInAppUpdates: Bool {
-#if APP_STORE
-        return false
-#else
         return true
-#endif
     }
 
     var statusSummary: String {
-#if APP_STORE
-        return "This App Store build receives updates through the Mac App Store. In-app updater controls are disabled."
-#else
         if isSessionInProgress {
             return "Sparkle is processing the current update session."
         }
@@ -74,39 +53,27 @@ final class AppUpdateChecker: NSObject, ObservableObject {
         }
 
         return "Automatic update checks are disabled. You can still run a manual, verified update check at any time."
-#endif
     }
 
     func checkForUpdates() {
-#if !APP_STORE
         updaterController.checkForUpdates(nil)
-#endif
     }
 
     func setAutomaticallyChecks(_ enabled: Bool) {
-#if !APP_STORE
         updaterController.updater.automaticallyChecksForUpdates = enabled
         if !enabled {
             updaterController.updater.automaticallyDownloadsUpdates = false
         }
-#else
-        _ = enabled
-#endif
     }
 
     func setAutomaticallyDownloads(_ enabled: Bool) {
-#if !APP_STORE
         guard allowsAutomaticUpdates else {
             return
         }
 
         updaterController.updater.automaticallyDownloadsUpdates = enabled
-#else
-        _ = enabled
-#endif
     }
 
-#if !APP_STORE
     private func bind(to updater: SPUUpdater) {
         updater.publisher(for: \.canCheckForUpdates, options: [.initial, .new])
             .sink { [weak self] value in
@@ -142,5 +109,4 @@ final class AppUpdateChecker: NSObject, ObservableObject {
             logger.info("Cleared legacy Sparkle feed URL override from user defaults: \(previousFeedURL.absoluteString, privacy: .public)")
         }
     }
-#endif
 }

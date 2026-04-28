@@ -372,9 +372,8 @@ final class ClipboardManager: ObservableObject {
 
         let normalizedBody = body
             .replacingOccurrences(of: "\u{0000}", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard !normalizedBody.isEmpty else {
+        guard !normalizedBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return
         }
 

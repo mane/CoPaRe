@@ -133,10 +133,6 @@ struct SettingsView: View {
                             )
                         )
                         .disabled(!updates.allowsAutomaticUpdates || !updates.automaticallyChecksForUpdates)
-                    } else {
-                        Text("Updates are managed by Apple through the Mac App Store for this build.")
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
                     }
                 }
 
