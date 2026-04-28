@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.4.0] - 2026-04-28
+
+### Added
+
+- Added privacy pause controls from the main window and menu bar.
+- Added snippet tags, tag-aware search, and tag persistence.
+- Added quick actions for clean text, Markdown links, opening URLs, web search, and QR code previews.
+- Added snippet import and export from Settings.
+- Added per-app capture rules with ignore, text-only, TTL, and per-app history limit support.
+
+### Changed
+
+- Improved image and file previews in the clipboard detail view.
+- Expanded privacy settings with masked-preview retention and capture rule controls.
+
 ## [1.3.8] - 2026-04-28
 
 ### Changed
