@@ -71,7 +71,7 @@ Version:
 1.4.1
 
 Copyright:
-© 2026 CoPaRe contributors
+© 2026 Eddy Boscolo
 
 ## App Review Information
 
