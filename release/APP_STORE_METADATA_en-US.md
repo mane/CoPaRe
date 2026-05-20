@@ -62,10 +62,10 @@ Keywords:
 clipboard,manager,history,copy,paste,snippets,privacy,security,mac,productivity
 
 Support URL:
-https://github.com/mane/CoPaRe/issues
+https://copare.boscolo.io/support/
 
 Marketing URL:
-https://github.com/mane/CoPaRe
+https://copare.boscolo.io/
 
 Version:
 1.4.1
@@ -104,6 +104,12 @@ Contact email:
 TODO: enter your App Review email address
 
 ## App Privacy
+
+Privacy Policy URL:
+https://copare.boscolo.io/privacy/
+
+User Privacy Choices URL:
+https://copare.boscolo.io/privacy/#privacy-choices
 
 Tracking:
 No
