@@ -36,7 +36,7 @@ struct SecurityOnboardingView: View {
         DemoItem(
             id: UUID(uuidString: "11BD4EA9-3F76-4D4F-A67A-A351CF92A0E0")!,
             type: .url,
-            title: "https://github.com/mane/CoPaRe/releases",
+            title: "https://example.com/project/notes",
             subtitle: "URL"
         ),
         DemoItem(

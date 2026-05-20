@@ -1,8 +1,44 @@
 import Combine
 import Foundation
+#if !APP_STORE
 import OSLog
 import Sparkle
+#endif
 
+#if APP_STORE
+@MainActor
+final class AppUpdateChecker: ObservableObject {
+    @Published private(set) var canCheckForUpdates = false
+    @Published private(set) var automaticallyChecksForUpdates = false
+    @Published private(set) var automaticallyDownloadsUpdates = false
+    @Published private(set) var allowsAutomaticUpdates = false
+    @Published private(set) var isSessionInProgress = false
+
+    var currentVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0"
+    }
+
+    var currentBuildNumber: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+    }
+
+    var currentVersionDisplay: String {
+        "\(currentVersion) (\(currentBuildNumber))"
+    }
+
+    var supportsInAppUpdates: Bool {
+        false
+    }
+
+    var statusSummary: String {
+        "Updates are delivered through the Mac App Store for this build."
+    }
+
+    func checkForUpdates() {}
+    func setAutomaticallyChecks(_ enabled: Bool) {}
+    func setAutomaticallyDownloads(_ enabled: Bool) {}
+}
+#else
 @MainActor
 final class AppUpdateChecker: NSObject, ObservableObject {
     @Published private(set) var canCheckForUpdates = true
@@ -110,3 +146,4 @@ final class AppUpdateChecker: NSObject, ObservableObject {
         }
     }
 }
+#endif

@@ -249,6 +249,44 @@ Typical outputs:
 - `dist/CoPaRe-vX.Y.Z.dmg`
 - `dist/CoPaRe-vX.Y.Z.dmg.sha256`
 
+## Mac App Store build flow
+
+Use `scripts/app-store-build.sh` for a Mac App Store archive/package. This flow builds a temporary project copy with Sparkle removed, strips Sparkle update keys from `Info.plist`, compiles with `APP_STORE`, and uses the App Store entitlements file.
+
+Unsigned local shape check:
+
+```bash
+./scripts/app-store-build.sh --unsigned-check
+```
+
+Signed local export:
+
+```bash
+./scripts/app-store-build.sh --allow-provisioning-updates
+```
+
+For CLI signing with an App Store Connect API key:
+
+```bash
+./scripts/app-store-build.sh \
+  --allow-provisioning-updates \
+  --authentication-key-path /path/to/AuthKey_XXXXXXXXXX.p8 \
+  --authentication-key-id XXXXXXXXXX \
+  --authentication-key-issuer-id XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+```
+
+Typical outputs:
+
+- `build/app-store/archives/CoPaRe-vX.Y.Z-AppStore.xcarchive`
+- `build/app-store/export/`
+- `release/APP_STORE_SUBMISSION.md` contains the submission checklist and review/privacy drafts.
+
+Requirements:
+
+- App Store Connect app record for the configured bundle ID
+- Apple Distribution or Mac App Distribution signing assets for team `6246LWZM9N`
+- A valid Mac App Store provisioning profile, or an Xcode account/API key that can create one with `--allow-provisioning-updates`
+
 ## Changelog
 
 - See [CHANGELOG.md](CHANGELOG.md) for version-by-version release notes.
