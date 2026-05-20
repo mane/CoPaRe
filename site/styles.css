@@ -1,14 +1,14 @@
 :root {
   color-scheme: light;
-  --bg: #f7f9fb;
+  --bg: #f4f7f9;
   --surface: #ffffff;
   --ink: #101820;
   --muted: #52606f;
   --line: #d9e1e8;
-  --blue: #0a5bd3;
+  --blue: #0b5cad;
   --green: #167a5a;
   --amber: #9a5b12;
-  --shadow: 0 26px 80px rgba(16, 24, 32, 0.18);
+  --shadow: 0 24px 64px rgba(16, 24, 32, 0.16);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -38,16 +38,18 @@ a:hover {
 }
 
 .site-header {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
   z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
   padding: 18px clamp(22px, 6vw, 88px);
-  background: rgba(247, 249, 251, 0.88);
-  border-bottom: 1px solid rgba(217, 225, 232, 0.8);
+  background: rgba(244, 247, 249, 0.86);
+  border-bottom: 1px solid rgba(217, 225, 232, 0.72);
   backdrop-filter: blur(18px);
 }
 
@@ -72,26 +74,33 @@ a:hover {
 
 .hero {
   position: relative;
-  min-height: 74svh;
+  min-height: 78svh;
   display: flex;
-  align-items: end;
-  padding: 0 clamp(22px, 6vw, 88px) clamp(42px, 8vw, 86px);
+  align-items: center;
+  padding: 98px clamp(22px, 6vw, 88px) 44px;
   overflow: hidden;
-  background-image: url("assets/copare-main.png");
-  background-position: center 62%;
-  background-size: cover;
+  background-color: #08111c;
+  background-image:
+    linear-gradient(90deg, rgba(5, 12, 20, 0.94) 0%, rgba(5, 12, 20, 0.76) 42%, rgba(5, 12, 20, 0.18) 100%),
+    image-set(
+      url("assets/optimized/copare-main-960.webp") 1x,
+      url("assets/optimized/copare-main-1440.webp") 2x
+    );
+  background-position: center, right 54%;
+  background-repeat: no-repeat;
+  background-size: cover, min(1320px, 92vw) auto;
 }
 
 .hero::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: rgba(5, 9, 14, 0.58);
+  background: linear-gradient(180deg, rgba(8, 17, 28, 0.1), rgba(8, 17, 28, 0.22));
 }
 
 .hero-content {
   position: relative;
-  max-width: 820px;
+  max-width: 760px;
   color: white;
 }
 
@@ -113,7 +122,7 @@ h3 {
 }
 
 h1 {
-  font-size: clamp(52px, 8vw, 112px);
+  font-size: clamp(54px, 8vw, 104px);
 }
 
 h2 {
@@ -125,11 +134,11 @@ h3 {
 }
 
 .lead {
-  max-width: 760px;
+  max-width: 720px;
   margin: 22px 0 0;
   color: rgba(255, 255, 255, 0.88);
-  font-size: clamp(21px, 2.4vw, 31px);
-  line-height: 1.28;
+  font-size: clamp(20px, 2.1vw, 28px);
+  line-height: 1.32;
 }
 
 .actions {
@@ -162,6 +171,25 @@ h3 {
   color: #08111c;
   background: white;
   border-color: white;
+}
+
+.hero-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hero-points li {
+  padding: 8px 11px;
+  border: 1px solid rgba(196, 240, 221, 0.32);
+  border-radius: 8px;
+  color: #d8f7ea;
+  background: rgba(196, 240, 221, 0.08);
+  font-size: 14px;
+  font-weight: 800;
 }
 
 .section {
@@ -222,11 +250,21 @@ h3 {
   gap: clamp(28px, 5vw, 76px);
 }
 
+.showcase.reverse {
+  grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.1fr);
+}
+
 .showcase img {
   width: 100%;
   height: auto;
   border-radius: 8px;
   box-shadow: var(--shadow);
+}
+
+.section-copy {
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 21px;
 }
 
 .plain-list {
@@ -322,15 +360,25 @@ h3 {
   .site-header {
     align-items: flex-start;
     flex-direction: column;
+    position: static;
   }
 
   .hero {
-    min-height: 72svh;
-    background-position: 58% center;
+    min-height: 76svh;
+    padding-top: 54px;
+    background-image:
+      linear-gradient(180deg, rgba(5, 12, 20, 0.88) 0%, rgba(5, 12, 20, 0.78) 48%, rgba(5, 12, 20, 0.36) 100%),
+      image-set(
+        url("assets/optimized/copare-main-960.webp") 1x,
+        url("assets/optimized/copare-main-1440.webp") 2x
+      );
+    background-position: center, 58% center;
+    background-size: cover, auto 78%;
   }
 
   .feature-grid,
   .showcase,
+  .showcase.reverse,
   .support-options {
     grid-template-columns: 1fr;
   }

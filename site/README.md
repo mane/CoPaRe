@@ -4,6 +4,10 @@ Static pages for `copare.boscolo.io`.
 
 Publish the contents of this `site/` directory as the web root.
 
+Images used by the website live in `assets/optimized/` as responsive WebP
+derivatives. The original App Store screenshots are intentionally not published
+from this directory.
+
 App Store Connect URLs:
 
 - Marketing URL: `https://copare.boscolo.io/`
