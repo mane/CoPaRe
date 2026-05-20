@@ -1,33 +1,27 @@
 # CoPaRe
 
-CoPaRe is a privacy-first clipboard manager for macOS.
+CoPaRe is a source-available, privacy-first clipboard manager for macOS.
 It keeps captured clipboard history session-only, stores only user-authored snippets across restarts when enabled, and prioritizes secure defaults for everyday work.
+
+[Website](https://copare.boscolo.io/) | [Support](https://copare.boscolo.io/support/) | [Privacy policy](https://copare.boscolo.io/privacy/) | [Latest GitHub release](https://github.com/mane/CoPaRe/releases/latest) | [Changelog](CHANGELOG.md)
 
 ## Why CoPaRe
 
 - Security-first design: session-only captured history, encrypted snippet vault, local authentication support
 - Practical daily workflow: fast search, menu bar quick panel, global shortcut, one-click copy
 - Clear privacy posture: no telemetry, no analytics SDKs, no cloud sync by default
-- Production-ready distribution: signed, notarized DMG flow and Sparkle signed updates
+- Production-ready distribution: signed, notarized manual-install build with Sparkle signed updates, plus a separate Mac App Store build flow
 
-## What's new in 1.3.1
+## What's new in 1.4.1
 
-- Redesigned first-launch interactive tour:
-  - complete 4-step guided flow
-  - required hands-on actions (search/filter/select/copy/pin/pause)
-  - reopen anytime from `CoPaRe > Interactive How To…`
-- Hardened sensitive-data handling in memory:
-  - likely secret captures are auto-masked in previews
-  - text search index avoids storing text preview bodies for copied text/URL entries
-- Stronger secret detection:
-  - improved token and key heuristics
-  - embedded JWT detection inside larger text blocks
-  - added PGP private-key detection
-- Safer file-path filtering:
-  - checks now include symlink-resolved targets to reduce bypass risk
-- Better secure-wipe UX:
-  - explicit confirmation before wipe
-  - clear success/warning feedback when protected Keychain items need authentication
+- Fixed sandboxed manual snippet export permissions.
+- Prevented clipboard content copied while monitoring is paused or locked from being captured after monitoring resumes.
+- Preserved unloaded saved snippets when persistence runs before the saved snippet vault is explicitly loaded.
+- Blocked and masked signed URLs and URL credentials that contain token-like query values.
+- Moved image OCR filtering off the pasteboard polling path so image captures do not block the UI while OCR runs.
+- Made Gatekeeper assessment failures stop notarized release builds instead of being ignored.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 ## Screenshots
 
@@ -45,9 +39,9 @@ It keeps captured clipboard history session-only, stores only user-authored snip
 
 ## Download and install
 
-### Install from GitHub Release (recommended)
+### Install manually from GitHub Release
 
-Use the prebuilt, signed and notarized package from GitHub Releases:
+Use the prebuilt, signed and notarized manual-install package from GitHub Releases:
 
 - [Latest release](https://github.com/mane/CoPaRe/releases/latest)
 
@@ -70,7 +64,9 @@ Step by step:
 
 After install, CoPaRe can auto-check signed updates from the app menu (`CoPaRe > Check for Updates…`).
 
-### Option 2: Build from source
+The GitHub release is the manual-install build and includes Sparkle updates. The Mac App Store build is prepared separately without Sparkle.
+
+### Build from source
 
 Requirements:
 
@@ -121,7 +117,7 @@ xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS
 - Local security event counters for blocked/skipped activity
 - Launch at login support on macOS 13+
 
-## Security posture
+## Security at a glance
 
 CoPaRe uses practical hardening appropriate for a local clipboard manager:
 
@@ -134,158 +130,15 @@ CoPaRe uses practical hardening appropriate for a local clipboard manager:
 - Optional snippet persistence stores only user-authored snippets in an encrypted vault stored in the app support container with restrictive local file permissions
 - Search avoids indexing full text bodies in RAM; only visible previews and minimal file labels remain searchable, and likely secrets are auto-masked in previews
 - Protected pasteboard-type detection for concealed/password-manager clipboard content
-- Re-copied text is marked with concealed/auto-generated pasteboard types to discourage capture by other well-behaved clipboard tools
-- Sensitive file-path filtering for likely secret material (for example `.key`, `.pem`, `.ovpn`, `.env*`, `.npmrc`, `.netrc`, `.ssh`, `.gnupg`, `~/.aws/credentials`, `~/.kube/config`), including symlink-resolved targets
-- Frontmost app exclusion rules prevent capture from configured bundle identifiers
-- Focused detail payload cleared when the app resigns active and after a short timeout
-- No automatic Keychain access in the normal application launch path; Keychain is touched only when saving or explicitly loading the encrypted snippets vault
-- When app lock is enabled, the saved-snippets vault key is stored with `userPresence`, so macOS requires system authentication before releasing that key
-- Lock snapshots are encrypted with a Keychain-backed key and no in-memory fallback key is kept while the app is locked
-- Outbound network access is limited to Sparkle update checks against the configured appcast feed and downloading signed update archives when an update is accepted
 - No analytics or outbound telemetry code in the app source
 
-## Security model limits
+Security limits, verification commands, and vulnerability reporting details are in [SECURITY.md](SECURITY.md).
 
-- No clipboard manager can reliably detect every secret copied by a user; CoPaRe's sensitive-content filtering is a best-effort safety net, not a guarantee.
-- The optional search experience is intentionally narrower than traditional clipboard managers because CoPaRe avoids retaining full plaintext bodies in RAM for global indexing.
-- If the logged-in macOS session is already compromised, clipboard contents can still be exposed.
-- CoPaRe is not a replacement for OS hardening, endpoint protection, or account security.
+## Distribution docs
 
-## Verify security locally
-
-Validate an installed app:
-
-```bash
-./scripts/security-check.sh /Applications/CoPaRe.app
-```
-
-Or build a fresh local Release bundle and verify it automatically:
-
-```bash
-./scripts/security-check.sh
-```
-
-Additional details: see [SECURITY.md](SECURITY.md).
-
-## Release versioning
-
-CoPaRe uses semantic versioning for release builds:
-
-- `major` for breaking changes (`BREAKING CHANGE` in the commit body or conventional-commit `!:` markers)
-- `minor` for new features (`feat:` commits, or commit subjects that start with `Add`, `Introduce`, or `Integrate`)
-- `patch` for fixes, hardening, UI refinements, docs, packaging, and maintenance changes
-
-The release baseline is tracked with annotated git tags named `vX.Y.Z`.
-Version inference compares commits since the latest release tag.
-
-Helpers:
-
-```bash
-./scripts/version.sh current
-./scripts/version.sh next
-./scripts/version.sh bump
-./scripts/version.sh tag
-```
-
-Typical flow before cutting a new release:
-
-```bash
-./scripts/version.sh bump
-git commit -am "Bump release to vX.Y.Z"
-./scripts/version.sh tag
-git push origin main --tags
-```
-
-## Signed DMG release flow
-
-Use `scripts/release.sh` when you want a signed distribution DMG and a Sparkle-ready update archive.
-
-The script:
-
-- builds a Distribution app
-- signs the app with your `Developer ID Application` certificate
-- validates security entitlements
-- creates `release/CoPaRe-vX.Y.Z.zip` from the signed app bundle for Sparkle
-- refreshes `release/appcast.xml` using Sparkle's `generate_appcast` tool and your EdDSA update key
-- optionally installs the app to `/Applications`
-- creates a DMG in `dist/`
-- signs the DMG
-- optionally notarizes and staples it
-- generates a SHA256 file next to the DMG
-
-Example:
-
-```bash
-./scripts/version.sh bump
-git commit -am "Bump release to vX.Y.Z"
-./scripts/version.sh tag
-git push origin main --tags
-
-./scripts/release.sh \
-  --sign-identity "Developer ID Application: NAME SURNAME (TEAMID)" \
-  --notary-profile "copare-notary"
-```
-
-One-time Sparkle setup before your first release:
-
-```bash
-xcodebuild -resolvePackageDependencies \
-  -project CoPaRe.xcodeproj \
-  -clonedSourcePackagesDirPath build/SourcePackages
-./build/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys --account io.copare.sparkle
-```
-
-Notes:
-
-- `scripts/release.sh` uses `io.copare.sparkle` as the default Sparkle key account
-- by default, Sparkle assets are generated for `https://github.com/mane/CoPaRe/releases/latest/download/`
-- override `SPARKLE_DOWNLOAD_URL_PREFIX` only if you want to self-host update assets somewhere else
-
-Typical outputs:
-
-- `release/CoPaRe-vX.Y.Z.zip`
-- `release/CoPaRe4-3.delta` (when Sparkle can generate a delta from the previous build)
-- `release/appcast.xml`
-- `dist/CoPaRe-vX.Y.Z.dmg`
-- `dist/CoPaRe-vX.Y.Z.dmg.sha256`
-
-## Mac App Store build flow
-
-Use `scripts/app-store-build.sh` for a Mac App Store archive/package. This flow builds a temporary project copy with Sparkle removed, strips Sparkle update keys from `Info.plist`, compiles with `APP_STORE`, and uses the App Store entitlements file.
-
-Unsigned local shape check:
-
-```bash
-./scripts/app-store-build.sh --unsigned-check
-```
-
-Signed local export:
-
-```bash
-./scripts/app-store-build.sh --allow-provisioning-updates
-```
-
-For CLI signing with an App Store Connect API key:
-
-```bash
-./scripts/app-store-build.sh \
-  --allow-provisioning-updates \
-  --authentication-key-path /path/to/AuthKey_XXXXXXXXXX.p8 \
-  --authentication-key-id XXXXXXXXXX \
-  --authentication-key-issuer-id XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
-```
-
-Typical outputs:
-
-- `build/app-store/archives/CoPaRe-vX.Y.Z-AppStore.xcarchive`
-- `build/app-store/export/`
-- `release/APP_STORE_SUBMISSION.md` contains the submission checklist and review/privacy drafts.
-
-Requirements:
-
-- App Store Connect app record for the configured bundle ID
-- Apple Distribution or Mac App Distribution signing assets for team `6246LWZM9N`
-- A valid Mac App Store provisioning profile, or an Xcode account/API key that can create one with `--allow-provisioning-updates`
+- [Distribution and release workflow](docs/DISTRIBUTION.md)
+- [App Store metadata draft](release/APP_STORE_METADATA_en-US.md)
+- [App Store submission checklist](release/APP_STORE_SUBMISSION.md)
 
 ## Changelog
 
@@ -325,8 +178,8 @@ Requirements:
 - `CoPaReTests/` unit tests
 - `CoPaReUITests/` UI tests
 - `CoPaRe-Info.plist` explicit app Info.plist containing Sparkle configuration
-- `docs/images/` screenshots used in this README
-- `release/` locally generated Sparkle archives plus the signed `appcast.xml`; only the appcast is intended to stay versioned in git
+- `docs/` project documentation and README screenshots
+- `release/` signed `appcast.xml`, release notes, App Store metadata, and App Store screenshots; generated Sparkle archives are ignored
 - `dist/` locally generated DMGs and checksums created by `scripts/release.sh` (not intended to stay versioned in git)
 - `scripts/` versioning, release automation, and security verification helpers
 - `LICENSE` CoPaRe Community License 1.0

@@ -15,14 +15,19 @@ Implemented controls:
 - Release entitlement `com.apple.security.get-task-allow = false`
 - Captured clipboard history is session-only and is never written to disk
 - Runtime payloads are wrapped with an in-memory session key and revealed on demand
+- Locking CoPaRe temporarily removes live history from the normal in-memory path, encrypts a short-lived lock snapshot, and pauses clipboard capture until unlock
 - Preview text is auto-masked for likely secret/token-like captures
 - Search indexing avoids storing full plaintext bodies for copied text/URL entries
 - Optional snippet persistence stores only user-authored snippets in an encrypted vault at rest in the app support container with restrictive local file permissions
 - No automatic Keychain access in the normal app launch path; Keychain is touched only when saving or explicitly loading the encrypted snippets vault
 - When app lock is enabled, the saved-snippets vault key is stored with `userPresence`, so macOS requires system authentication before releasing that key
+- Lock snapshots are encrypted with a Keychain-backed key and no in-memory fallback key is kept while the app is locked
 - Sensitive file-path filtering evaluates both original and symlink-resolved paths
+- Frontmost app exclusion rules prevent capture from configured bundle identifiers
+- Focused detail payloads are cleared when the app resigns active and after a short timeout
 - Re-copied text is marked with concealed/auto-generated pasteboard types to discourage capture by other well-behaved clipboard tools
 - In-app updates are handled by Sparkle using a signed appcast feed and EdDSA-signed archives
+- Outbound network access is limited to Sparkle update checks against the configured appcast feed and downloading signed update archives when an update is accepted
 - No telemetry/tracking code paths in app source
 
 ## What CoPaRe does not claim
