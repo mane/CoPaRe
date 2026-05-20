@@ -694,7 +694,7 @@ final class ClipboardManager: ObservableObject {
             return
         }
 
-        let now = Date()
+        let now = capture.capturedAt
         let expirationDate = expirationDate(
             for: .captured,
             from: now,
@@ -939,20 +939,44 @@ final class ClipboardManager: ObservableObject {
             }
 
             if persistSnippets {
+                var snippetsToPersist = currentSnapshot
+                var keepSavedSnippetsUnloaded = false
+
                 if hasStoredSnippets && !areStoredSnippetsLoaded {
-                    self.hasSavedSnippetsAvailable = true
-                    self.savedSnippetsLoaded = false
-                    return
+                    guard let storedSnippets = await snippetStore.loadSnippets() else {
+                        self.hasSavedSnippetsAvailable = true
+                        self.savedSnippetsLoaded = false
+                        return
+                    }
+
+                    snippetsToPersist = self.mergedSnippetsForPersistence(
+                        currentSnippets: currentSnapshot,
+                        storedSnippets: storedSnippets
+                    )
+                    keepSavedSnippetsUnloaded = !storedSnippets.isEmpty
                 }
 
-                await snippetStore.saveSnippets(currentSnapshot, requireUserPresence: requireUserPresence)
-                self.hasSavedSnippetsAvailable = !currentSnapshot.isEmpty
-                self.savedSnippetsLoaded = true
+                await snippetStore.saveSnippets(snippetsToPersist, requireUserPresence: requireUserPresence)
+                self.hasSavedSnippetsAvailable = !snippetsToPersist.isEmpty
+                self.savedSnippetsLoaded = keepSavedSnippetsUnloaded ? false : true
             } else {
                 self.hasSavedSnippetsAvailable = false
                 self.savedSnippetsLoaded = true
             }
         }
+    }
+
+    private func mergedSnippetsForPersistence(
+        currentSnippets: [ClipboardHistoryItem],
+        storedSnippets: [ClipboardHistoryItem]
+    ) -> [ClipboardHistoryItem] {
+        let currentIDs = Set(currentSnippets.map(\.id))
+        let currentDigests = Set(currentSnippets.map(\.digest))
+        let uniqueStoredSnippets = storedSnippets.filter { snippet in
+            !currentIDs.contains(snippet.id) && !currentDigests.contains(snippet.digest)
+        }
+
+        return currentSnippets + uniqueStoredSnippets
     }
 
     private func plainTextRepresentation(for item: ClipboardHistoryItem) -> String? {

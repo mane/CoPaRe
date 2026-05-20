@@ -58,6 +58,16 @@ struct CoPaReTests {
         #expect(!SensitiveContentDetector.shouldMaskPreview(text: "Deployment notes for sprint planning"))
     }
 
+    @Test func blocksSensitiveURLCredentials() {
+        let signedURL = "https://example.com/download?X-Amz-Signature=abcdef1234567890abcdef1234567890&X-Amz-Credential=AKIAIOSFODNN7EXAMPLE"
+        let credentialURL = "https://user:secret-password-value@example.com/private"
+
+        #expect(SensitiveContentDetector.shouldBlock(text: signedURL))
+        #expect(SensitiveContentDetector.shouldMaskPreview(text: signedURL))
+        #expect(SensitiveContentDetector.shouldBlock(text: credentialURL))
+        #expect(!SensitiveContentDetector.shouldMaskPreview(text: "https://example.com/docs/release-notes"))
+    }
+
     @Test func buildSearchIndexKeepsOnlyMinimalFileMetadata() {
         let textSearchIndex = ClipboardHistoryItem.makeSearchIndex(
             for: .text,

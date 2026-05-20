@@ -2,8 +2,8 @@ import AppKit
 import Foundation
 import Vision
 
-struct ImageOCRService {
-    func recognizedText(fromPNGData data: Data) -> String? {
+struct ImageOCRService: Sendable {
+    nonisolated func recognizedText(fromPNGData data: Data) -> String? {
         guard #available(macOS 13.0, *) else {
             return nil
         }

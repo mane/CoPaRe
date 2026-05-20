@@ -236,6 +236,23 @@ cleanup_mount() {
 }
 trap cleanup_mount EXIT
 
+run_spctl_check() {
+  local label="$1"
+  shift
+
+  if "$@"; then
+    return 0
+  fi
+
+  if [[ "${SKIP_NOTARIZE}" == "1" ]]; then
+    echo "Warning: ${label} failed; continuing because notarization was skipped." >&2
+    return 0
+  fi
+
+  echo "Error: ${label} failed." >&2
+  exit 1
+}
+
 strip_quarantine_attributes() {
   local target="$1"
 
@@ -347,11 +364,11 @@ else
 fi
 
 echo "[11/11] Verify + SHA256"
-spctl -a -t open -vv "${DMG_PATH}" || true
+run_spctl_check "DMG Gatekeeper assessment" spctl -a -t open --context context:primary-signature -vv "${DMG_PATH}"
 ATTACH_OUT="$(hdiutil attach "${DMG_PATH}" -readonly -nobrowse)"
 MOUNT_POINT="$(extract_mount_point "${ATTACH_OUT}")"
 if [[ -n "${MOUNT_POINT}" ]]; then
-  spctl -a -vvv -t exec "${MOUNT_POINT}/${APP_NAME}.app" || true
+  run_spctl_check "mounted app Gatekeeper assessment" spctl -a -vvv -t exec "${MOUNT_POINT}/${APP_NAME}.app"
 fi
 (
   cd "$(dirname "${DMG_PATH}")"

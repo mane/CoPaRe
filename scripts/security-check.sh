@@ -46,8 +46,8 @@ if ! printf '%s\n' "${ENT_DUMP}" | grep -Fq '"com.apple.security.app-sandbox" =>
   exit 1
 fi
 
-if ! printf '%s\n' "${ENT_DUMP}" | grep -Fq '"com.apple.security.files.user-selected.read-only" => true'; then
-  echo "ERROR: user-selected-files read-only entitlement is not enabled" >&2
+if ! printf '%s\n' "${ENT_DUMP}" | grep -Fq '"com.apple.security.files.user-selected.read-write" => true'; then
+  echo "ERROR: user-selected-files read-write entitlement is not enabled" >&2
   exit 1
 fi
 
@@ -87,7 +87,7 @@ fi
 
 echo "Security check passed for ${APP_PATH}"
 echo "- app-sandbox: true"
-echo "- files.user-selected.read-only: true"
+echo "- files.user-selected.read-write: true"
 echo "- get-task-allow: false"
 if [[ -d "${SPARKLE_FRAMEWORK_PATH}" ]]; then
   echo "- sparkle helper quarantine: none"

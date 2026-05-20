@@ -4,6 +4,17 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.4.1] - 2026-05-20
+
+### Fixed
+
+- Fixed manual snippet export permissions for sandboxed builds by enabling user-selected read/write access.
+- Prevented clipboard content copied while monitoring is paused or locked from being captured after monitoring resumes.
+- Preserved unloaded saved snippets when persistence runs before the saved snippet vault is explicitly loaded.
+- Blocked and masked signed URLs and URL credentials that contain token-like query values.
+- Moved image OCR filtering off the pasteboard polling path so image captures do not block the UI while OCR runs.
+- Made Gatekeeper assessment failures stop notarized release builds instead of being ignored.
+
 ## [1.4.0] - 2026-04-28
 
 ### Added

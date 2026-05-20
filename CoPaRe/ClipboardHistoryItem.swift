@@ -2,7 +2,7 @@ import AppKit
 import CryptoKit
 import Foundation
 
-enum ClipboardItemType: String, Codable, CaseIterable, Identifiable {
+enum ClipboardItemType: String, Codable, CaseIterable, Identifiable, Sendable {
     case text
     case url
     case image
@@ -37,7 +37,7 @@ enum ClipboardItemType: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-enum ClipboardItemOrigin: String, Codable {
+enum ClipboardItemOrigin: String, Codable, Sendable {
     case captured
     case snippet
 
@@ -51,7 +51,7 @@ enum ClipboardItemOrigin: String, Codable {
     }
 }
 
-struct ClipboardItemPayload: Codable, Hashable {
+struct ClipboardItemPayload: Codable, Hashable, Sendable {
     let plainText: String?
     let imagePNGData: Data?
     let filePaths: [String]?
@@ -87,7 +87,7 @@ struct ClipboardItemPayload: Codable, Hashable {
     }
 }
 
-struct EncryptedClipboardPayload: Codable, Hashable {
+struct EncryptedClipboardPayload: Codable, Hashable, Sendable {
     let version: Int
     let keyService: String?
     let nonce: Data
@@ -141,7 +141,7 @@ struct EncryptedClipboardPayload: Codable, Hashable {
     }
 }
 
-struct ClipboardHistoryItem: Identifiable, Hashable {
+struct ClipboardHistoryItem: Identifiable, Hashable, Sendable {
     let id: UUID
     let type: ClipboardItemType
     let createdAt: Date
