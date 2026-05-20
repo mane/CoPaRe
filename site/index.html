@@ -6,12 +6,17 @@
     <title>CoPaRe - Private clipboard for Mac</title>
     <meta name="description" content="CoPaRe is a privacy-first clipboard manager for macOS with session-only history, fast search, menu bar access, and encrypted local snippets.">
     <link rel="canonical" href="https://copare.boscolo.io/">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="styles.css">
   </head>
   <body>
     <header class="site-header">
-      <a class="brand" href="/">CoPaRe</a>
+      <a class="brand" href="/" aria-label="CoPaRe home">
+        <span class="brand-mark">C</span>
+        <span>CoPaRe</span>
+      </a>
       <nav class="nav" aria-label="Primary navigation">
+        <a href="#features">Features</a>
         <a href="/privacy/">Privacy</a>
         <a href="/support/">Support</a>
         <a href="https://github.com/mane/CoPaRe">GitHub</a>
@@ -21,63 +26,87 @@
     <main>
       <section class="hero">
         <div class="hero-content">
-          <p class="eyebrow">Private clipboard for Mac</p>
-          <h1>CoPaRe</h1>
-          <p class="lead">Fast clipboard recall with session-only history, local-first privacy controls, and encrypted snippets when you choose to save them.</p>
-          <div class="actions">
-            <a class="button primary" href="https://github.com/mane/CoPaRe/releases/latest">Download</a>
-            <a class="button" href="/privacy/">Privacy Policy</a>
+          <p class="eyebrow">Private clipboard manager for macOS</p>
+          <h1>CoPaRe keeps your clipboard useful without making it permanent.</h1>
+          <p class="lead">Search recent copies, reuse snippets, and pause capture when work gets sensitive. Everything stays local on your Mac.</p>
+          <div class="actions" aria-label="Primary actions">
+            <a class="button primary" href="https://github.com/mane/CoPaRe/releases/latest">Download for Mac</a>
+            <a class="button" href="/privacy/">Read privacy policy</a>
           </div>
-          <ul class="hero-points" aria-label="CoPaRe highlights">
-            <li>No account</li>
-            <li>No analytics</li>
-            <li>No cloud sync</li>
-          </ul>
+        </div>
+
+        <div class="hero-proof" aria-label="CoPaRe privacy highlights">
+          <span>No account</span>
+          <span>No analytics</span>
+          <span>No cloud sync</span>
         </div>
       </section>
 
-      <section class="section white">
+      <section class="intro-strip" aria-label="CoPaRe essentials">
+        <div>
+          <strong>Session-only history</strong>
+          <span>Clipboard captures are cleared when CoPaRe quits.</span>
+        </div>
+        <div>
+          <strong>Menu bar access</strong>
+          <span>Open, search, and copy again without breaking flow.</span>
+        </div>
+        <div>
+          <strong>Encrypted snippets</strong>
+          <span>Persist only the reusable text you explicitly save.</span>
+        </div>
+      </section>
+
+      <section class="section white" id="features">
         <div class="section-heading">
-          <h2>Built for local work</h2>
-          <p>CoPaRe keeps copied material useful without turning the clipboard into a permanent remote data store.</p>
+          <p class="eyebrow">Why it exists</p>
+          <h2>Clipboard history for people who handle private work.</h2>
+          <p>CoPaRe is intentionally small, local, and direct. It helps you recover what you just copied without adding accounts, telemetry, or remote storage.</p>
         </div>
         <div class="feature-grid">
           <article class="feature">
-            <strong>Session-only</strong>
-            <h3>Clipboard history clears when CoPaRe quits.</h3>
-            <p>Captured items stay local and are designed for short-lived access during the current session.</p>
+            <span class="feature-icon">01</span>
+            <strong>Fast recall</strong>
+            <h3>Find text, URLs, images, files, and snippets in one place.</h3>
+            <p>Use search, filters, and the menu bar to copy again without hunting through apps or documents.</p>
           </article>
           <article class="feature">
-            <strong>Private by default</strong>
-            <h3>No account, telemetry, analytics, or cloud sync.</h3>
-            <p>The app does not collect user data or send clipboard contents to a server.</p>
+            <span class="feature-icon">02</span>
+            <strong>Designed to forget</strong>
+            <h3>Keep history useful for the current session, then let it go.</h3>
+            <p>Captured clipboard items are session-only by default and can be securely deleted at any time.</p>
           </article>
           <article class="feature">
-            <strong>Encrypted snippets</strong>
-            <h3>Save only what you explicitly choose.</h3>
-            <p>Reusable snippets can be stored locally in an encrypted vault protected with Apple platform APIs.</p>
+            <span class="feature-icon">03</span>
+            <strong>Local controls</strong>
+            <h3>Pause monitoring, filter sensitive material, and tune retention.</h3>
+            <p>CoPaRe gives you visible controls for the moments when the clipboard should stay quiet.</p>
           </article>
         </div>
       </section>
 
-      <section class="section">
+      <section class="section product-band">
         <div class="showcase">
-          <img
-            src="assets/optimized/copare-privacy-controls-960.webp"
-            srcset="assets/optimized/copare-privacy-controls-960.webp 960w, assets/optimized/copare-privacy-controls-1440.webp 1440w"
-            sizes="(max-width: 860px) 100vw, 52vw"
-            width="1440"
-            height="900"
-            loading="lazy"
-            decoding="async"
-            alt="CoPaRe privacy and capture settings">
-          <div>
-            <h2>Controls for sensitive workflows</h2>
+          <picture>
+            <source
+              srcset="assets/optimized/copare-main-960.webp 960w, assets/optimized/copare-main-1440.webp 1440w"
+              sizes="(max-width: 900px) 100vw, 58vw">
+            <img
+              src="assets/optimized/copare-main-1440.webp"
+              width="1440"
+              height="900"
+              loading="lazy"
+              decoding="async"
+              alt="CoPaRe light mode clipboard history window with demo clipboard items">
+          </picture>
+          <div class="showcase-copy">
+            <p class="eyebrow">Everyday workflow</p>
+            <h2>Copy again without exposing more than you need.</h2>
             <ul class="plain-list">
-              <li>Pause monitoring while handling private material.</li>
-              <li>Filter likely secrets and protected pasteboard data.</li>
-              <li>Search text, URLs, files, images, and saved snippets.</li>
-              <li>Copy again, copy as plain text, pin, or securely delete items.</li>
+              <li>Search recent text, links, images, files, and snippets.</li>
+              <li>Reveal content only when you choose to inspect it.</li>
+              <li>Pin what matters and securely delete what does not.</li>
+              <li>Keep direct-download updates verified through signed releases.</li>
             </ul>
           </div>
         </div>
@@ -85,19 +114,55 @@
 
       <section class="section white">
         <div class="showcase reverse">
-          <div>
-            <h2>A guided first run</h2>
-            <p class="section-copy">CoPaRe introduces the core workflow before it starts handling your clipboard, then stays available from the menu bar for quick actions.</p>
+          <div class="showcase-copy">
+            <p class="eyebrow">Privacy controls</p>
+            <h2>Clear settings for capture, retention, and sensitive content.</h2>
+            <p class="section-copy">Tune CoPaRe around your workflow: image and file capture, OCR filtering, time-to-live, app exclusions, local snippet persistence, and secure wipe are all visible in one place.</p>
           </div>
-          <img
-            src="assets/optimized/copare-onboarding-960.webp"
+          <picture>
+            <source
+              srcset="assets/optimized/copare-privacy-controls-960.webp 960w, assets/optimized/copare-privacy-controls-1440.webp 1440w"
+              sizes="(max-width: 900px) 100vw, 46vw">
+            <img
+              src="assets/optimized/copare-privacy-controls-1440.webp"
+              width="1440"
+              height="900"
+              loading="lazy"
+              decoding="async"
+              alt="CoPaRe light mode privacy and capture settings">
+          </picture>
+        </div>
+      </section>
+
+      <section class="section split-band">
+        <div class="section-heading compact">
+          <p class="eyebrow">First run</p>
+          <h2>A guided start before clipboard capture begins.</h2>
+          <p>The onboarding flow explains the core controls up front, then CoPaRe stays available from the menu bar for quick actions.</p>
+        </div>
+        <picture class="wide-shot">
+          <source
             srcset="assets/optimized/copare-onboarding-960.webp 960w, assets/optimized/copare-onboarding-1440.webp 1440w"
-            sizes="(max-width: 860px) 100vw, 52vw"
+            sizes="100vw">
+          <img
+            src="assets/optimized/copare-onboarding-1440.webp"
             width="1440"
             height="900"
             loading="lazy"
             decoding="async"
-            alt="CoPaRe onboarding tour">
+            alt="CoPaRe light mode onboarding tour">
+        </picture>
+      </section>
+
+      <section class="cta-band">
+        <div>
+          <p class="eyebrow">Local-first by design</p>
+          <h2>Try CoPaRe on your Mac.</h2>
+          <p>Download the latest signed release from GitHub, or review the source before installing.</p>
+        </div>
+        <div class="actions">
+          <a class="button primary" href="https://github.com/mane/CoPaRe/releases/latest">Download latest release</a>
+          <a class="button" href="https://github.com/mane/CoPaRe">View source</a>
         </div>
       </section>
     </main>
