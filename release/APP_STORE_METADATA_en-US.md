@@ -6,7 +6,7 @@ App name:
 CoPaRe
 
 Subtitle:
-Private clipboard for Mac
+Private Clipboard Manager
 
 Primary category:
 Productivity
@@ -23,7 +23,7 @@ No objectionable content, gambling, unrestricted web access, commerce, user-gene
 Pricing:
 Free
 
-## macOS App Version 1.4.1
+## macOS App Version 1.4.2
 
 Screenshots:
 - release/app-store/screenshots/en-US/mac/01-private-clipboard-history.png
@@ -31,10 +31,10 @@ Screenshots:
 - release/app-store/screenshots/en-US/mac/03-guided-onboarding.png
 
 Promotional Text:
-Private clipboard history for macOS: fast search, menu bar access, encrypted snippets, sensitive-content filtering, and no cloud sync.
+Private clipboard history: fast search, menu bar access, encrypted snippets, sensitive-content filtering, and no cloud sync.
 
 Description:
-CoPaRe is a privacy-first clipboard manager for macOS.
+CoPaRe is a privacy-first clipboard manager.
 
 It keeps recent clipboard items close at hand without turning your clipboard into a permanent data store. Captured history is session-only and is cleared when the app quits. If you choose to save reusable snippets, CoPaRe stores only those user-created snippets in an encrypted local vault.
 
@@ -49,17 +49,17 @@ Built for daily work:
 
 Security and privacy are central to the app:
 
-- Clipboard processing happens locally on your Mac.
+- Clipboard processing happens locally on your device.
 - No account is required.
 - No analytics, telemetry, advertising SDKs, or cloud sync are included.
 - Sensitive-content filtering helps skip likely secrets and protected pasteboard data.
-- App lock can require local macOS authentication before viewing history.
+- App lock can require local system authentication before viewing history.
 - Saved snippets are encrypted at rest.
 
 CoPaRe is designed for people who copy useful information throughout the day but still want a clear boundary around clipboard retention.
 
 Keywords:
-clipboard,manager,history,copy,paste,snippets,privacy,security,mac,productivity
+clipboard,manager,history,copy,paste,snippets,privacy,security,productivity
 
 Support URL:
 https://copare.boscolo.io/support/
@@ -68,7 +68,7 @@ Marketing URL:
 https://copare.boscolo.io/
 
 Version:
-1.4.1
+1.4.2
 
 Copyright:
 © 2026 Eddy Boscolo
@@ -82,7 +82,7 @@ Demo account:
 Not applicable
 
 Review notes:
-CoPaRe is a local macOS menu bar clipboard utility. Clipboard capture and history management run locally on the device. Captured history is session-only unless the user explicitly saves snippets; saved snippets are stored in an encrypted local vault. The app does not require an account, server, subscription, or external updater in the App Store build. Updates for this build are delivered through the Mac App Store. The global shortcut and launch-at-login behavior are user-controlled in Settings.
+CoPaRe is a local menu bar clipboard utility. Clipboard capture and history management run locally on the device. Captured history is session-only unless the user explicitly saves snippets; saved snippets are stored in an encrypted local vault. The app does not require an account, server, subscription, or external updater in the App Store build. Updates for this build are delivered through the App Store. The global shortcut and launch-at-login behavior are user-controlled in Settings.
 
 Suggested review steps:
 1. Launch CoPaRe.

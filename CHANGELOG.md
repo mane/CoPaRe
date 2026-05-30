@@ -4,6 +4,14 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.4.2] - 2026-05-30
+
+### Changed
+
+- Updated the macOS app icon across all AppIcon asset sizes.
+- Refreshed App Store listing metadata for the new icon submission.
+- Refreshed README, website, and repository hygiene documentation after the 1.4.1 release.
+
 ## [1.4.1] - 2026-05-20
 
 ### Fixed

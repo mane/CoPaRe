@@ -3,8 +3,8 @@
 ## Current Target
 
 - App: CoPaRe
-- Version: 1.4.1
-- Build: 15
+- Version: 1.4.2
+- Build: 16
 - Bundle ID: io.copare.app
 - Team ID: 6246LWZM9N
 - Category: Productivity

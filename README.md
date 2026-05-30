@@ -12,14 +12,11 @@ It keeps captured clipboard history session-only, stores only user-authored snip
 - Clear privacy posture: no telemetry, no analytics SDKs, no cloud sync by default
 - Production-ready distribution: signed, notarized manual-install build with Sparkle signed updates, plus a separate Mac App Store build flow
 
-## What's new in 1.4.1
+## What's new in 1.4.2
 
-- Fixed sandboxed manual snippet export permissions.
-- Prevented clipboard content copied while monitoring is paused or locked from being captured after monitoring resumes.
-- Preserved unloaded saved snippets when persistence runs before the saved snippet vault is explicitly loaded.
-- Blocked and masked signed URLs and URL credentials that contain token-like query values.
-- Moved image OCR filtering off the pasteboard polling path so image captures do not block the UI while OCR runs.
-- Made Gatekeeper assessment failures stop notarized release builds instead of being ignored.
+- Updated the macOS app icon across all required icon sizes.
+- Refreshed App Store listing copy for the new submission.
+- Included the latest README, website, screenshot, and repository hygiene updates.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
