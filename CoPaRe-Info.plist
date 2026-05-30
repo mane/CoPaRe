@@ -24,6 +24,8 @@
     <string>public.app-category.productivity</string>
     <key>LSUIElement</key>
     <true/>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>NSHumanReadableCopyright</key>
     <string>© 2026 Eddy Boscolo</string>
     <key>SUAutomaticallyUpdate</key>

@@ -3,8 +3,8 @@
 ## Current Target
 
 - App: CoPaRe
-- Version: 1.4.2
-- Build: 16
+- Version: 1.4.3
+- Build: 17
 - Bundle ID: io.copare.app
 - Team ID: 6246LWZM9N
 - Category: Productivity
@@ -52,6 +52,10 @@ Or with an explicit App Store Connect API key:
 ## App Review Notes Draft
 
 CoPaRe is a local macOS menu bar clipboard utility. Clipboard capture and history management run locally on the device. Captured history is session-only unless the user explicitly saves snippets; saved snippets are stored in an encrypted local vault. The app does not require an account, server, subscription, or external updater in the App Store build. Updates for this build are delivered through the Mac App Store. The global shortcut and launch-at-login behavior are user-controlled in Settings.
+
+## What's New Draft
+
+Updated app icon.
 
 ## App Privacy Draft
 
