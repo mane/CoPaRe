@@ -1,0 +1,9 @@
+{
+  "id" : "d8aa362d-f080-44d2-8747-1ce5b01617cc",
+  "targets" : [
+    {
+      "id" : "d67e8f6c-4bab-46d0-8879-7ea311676f7f",
+      "name" : "CoPaRe"
+    }
+  ]
+}
