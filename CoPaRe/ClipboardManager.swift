@@ -74,6 +74,20 @@ private struct LockedClipboardEnvelope {
     let tag: Data
 }
 
+private enum PreparedLockedSnapshot {
+    case empty
+    case encrypted(LockedClipboardEnvelope)
+
+    var envelope: LockedClipboardEnvelope? {
+        switch self {
+        case .empty:
+            return nil
+        case let .encrypted(envelope):
+            return envelope
+        }
+    }
+}
+
 private struct SnippetExportDocument: Codable {
     let version: Int
     let exportedAt: Date
@@ -106,6 +120,8 @@ final class ClipboardManager: ObservableObject {
     @Published private(set) var secureWipeMessage: String?
     @Published private(set) var secureWipeFailed = false
     @Published private(set) var privacyPauseUntil: Date?
+    @Published private(set) var isVaultTransitioning = false
+    @Published private(set) var lockFailureMessage: String?
 
     let settings: SettingsStore
 
@@ -122,6 +138,12 @@ final class ClipboardManager: ObservableObject {
     private var expirationTimer: Timer?
     private var privacyPauseTimer: Timer?
     private var lockedSnapshotEnvelope: LockedClipboardEnvelope?
+    private var vaultOperationGeneration = 0
+    private var settingsGeneration = 0
+    private var pendingSnippetDeletionIDs: Set<UUID> = []
+    private var disabledPersistenceCleanupFailed = false
+    private var appliedLockProtectionEnabled: Bool
+    private var appliedPersistenceEnabled: Bool
 
     init(
         settings: SettingsStore,
@@ -131,6 +153,8 @@ final class ClipboardManager: ObservableObject {
         self.snippetStore = snippetStore
         captureService = ClipboardCaptureService(settings: settings)
         isLocked = settings.lockProtectionEnabled
+        appliedLockProtectionEnabled = settings.lockProtectionEnabled
+        appliedPersistenceEnabled = settings.persistHistory
 
         captureService.onCapture = { [weak self] capture in
             self?.handleCapture(capture)
@@ -157,14 +181,14 @@ final class ClipboardManager: ObservableObject {
         }
     }
 
-    deinit {
+    isolated deinit {
         persistTask?.cancel()
         expirationTimer?.invalidate()
         privacyPauseTimer?.invalidate()
     }
 
     var filteredItems: [ClipboardHistoryItem] {
-        guard !isLocked else {
+        guard !isLocked, !isVaultTransitioning else {
             return []
         }
 
@@ -206,7 +230,7 @@ final class ClipboardManager: ObservableObject {
     }
 
     var menuItems: [ClipboardHistoryItem] {
-        guard !isLocked else {
+        guard !isLocked, !isVaultTransitioning else {
             return []
         }
         return Array(items.prefix(8))
@@ -232,7 +256,7 @@ final class ClipboardManager: ObservableObject {
     }
 
     func item(with id: UUID?) -> ClipboardHistoryItem? {
-        guard let id else {
+        guard !isLocked, !isVaultTransitioning, let id else {
             return nil
         }
         return items.first(where: { $0.id == id })
@@ -243,7 +267,7 @@ final class ClipboardManager: ObservableObject {
     }
 
     func copyToClipboard(_ item: ClipboardHistoryItem) {
-        guard !isLocked else {
+        guard !isLocked, !isVaultTransitioning else {
             return
         }
 
@@ -257,7 +281,7 @@ final class ClipboardManager: ObservableObject {
     }
 
     func copyAsPlainText(_ item: ClipboardHistoryItem) {
-        guard !isLocked else {
+        guard !isLocked, !isVaultTransitioning else {
             return
         }
 
@@ -271,29 +295,42 @@ final class ClipboardManager: ObservableObject {
     }
 
     func copyCleanText(_ item: ClipboardHistoryItem) {
-        guard !isLocked, let text = plainTextRepresentation(for: item)?.condensingWhitespace(), !text.isEmpty else {
+        guard !isLocked,
+              !isVaultTransitioning,
+              let text = plainTextRepresentation(for: item)?.condensingWhitespace(),
+              !text.isEmpty
+        else {
             return
         }
 
-        captureService.writeString(text)
+        guard captureService.writeString(text) else {
+            return
+        }
+
         if settings.oneTimeCopyEnabled, !item.isPinned, !item.isSnippet {
             remove(itemID: item.id, immediatelyPersist: true)
         }
     }
 
     func copyAsMarkdown(_ item: ClipboardHistoryItem) {
-        guard !isLocked, let markdown = markdownRepresentation(for: item) else {
+        guard !isLocked,
+              !isVaultTransitioning,
+              let markdown = markdownRepresentation(for: item)
+        else {
             return
         }
 
-        captureService.writeString(markdown)
+        guard captureService.writeString(markdown) else {
+            return
+        }
+
         if settings.oneTimeCopyEnabled, !item.isPinned, !item.isSnippet {
             remove(itemID: item.id, immediatelyPersist: true)
         }
     }
 
     func openURL(_ item: ClipboardHistoryItem) {
-        guard !isLocked, let url = urlRepresentation(for: item) else {
+        guard !isLocked, !isVaultTransitioning, let url = urlRepresentation(for: item) else {
             return
         }
         NSWorkspace.shared.open(url)
@@ -301,6 +338,7 @@ final class ClipboardManager: ObservableObject {
 
     func searchWeb(for item: ClipboardHistoryItem) {
         guard !isLocked,
+              !isVaultTransitioning,
               let query = plainTextRepresentation(for: item)?.previewSnippet(maxLength: 300),
               !query.isEmpty
         else {
@@ -316,7 +354,7 @@ final class ClipboardManager: ObservableObject {
     }
 
     func qrCodeText(for item: ClipboardHistoryItem) -> String? {
-        guard !isLocked else {
+        guard !isLocked, !isVaultTransitioning else {
             return nil
         }
 
@@ -348,24 +386,121 @@ final class ClipboardManager: ObservableObject {
         syncCaptureServiceMonitoringState()
     }
 
-    func lock() {
+    @discardableResult
+    func lock() async -> Bool {
+        await lock(expectedSettingsGeneration: settingsGeneration)
+    }
+
+    func dismissLockFailure() {
+        lockFailureMessage = nil
+    }
+
+    @discardableResult
+    private func lock(expectedSettingsGeneration: Int) async -> Bool {
         guard settings.lockProtectionEnabled, !isLocked else {
-            return
+            return isLocked
+        }
+        guard !isVaultTransitioning,
+              expectedSettingsGeneration == settingsGeneration
+        else {
+            return false
         }
 
-        guard prepareLockedSnapshot() else {
-            logger.error("Lock aborted: unable to prepare encrypted snapshot")
-            return
+        lockFailureMessage = nil
+        isVaultTransitioning = true
+        persistTask?.cancel()
+        persistTask = nil
+        _ = nextVaultOperationGeneration()
+        syncCaptureServiceMonitoringState()
+
+        defer {
+            isVaultTransitioning = false
+            if !isLocked {
+                refreshCapturedItemExpiryAndPrune()
+            }
+            syncCaptureServiceMonitoringState()
         }
 
+        guard var recordsToPersist = snippetPersistenceRecords(from: items) else {
+            reportLockFailure("Some history could not be protected. CoPaRe stayed unlocked.")
+            return false
+        }
+        let deletionIDsToPersist = pendingSnippetDeletionIDs
+        recordsToPersist.removeAll { deletionIDsToPersist.contains($0.id) }
+
+        guard let preparedSnapshot = prepareLockedSnapshot() else {
+            recordsToPersist.removeAll(keepingCapacity: false)
+            reportLockFailure("Authentication was canceled or the lock key was unavailable. CoPaRe stayed unlocked.")
+            return false
+        }
+
+        var keepSavedSnippetsUnloaded = false
+        if settings.persistHistory {
+            let hasStoredSnippets = await snippetStore.hasSavedSnippets()
+            if hasStoredSnippets {
+                guard let storedRecords = await snippetStore.loadSnippetRecords() else {
+                    recordsToPersist.removeAll(keepingCapacity: false)
+                    reportLockFailure("Saved snippets could not be opened. CoPaRe stayed unlocked.")
+                    return false
+                }
+                let mergedRecords = mergedSnippetRecordsForPersistence(
+                    currentRecords: recordsToPersist,
+                    storedRecords: storedRecords,
+                    excluding: deletionIDsToPersist
+                )
+                keepSavedSnippetsUnloaded = mergedRecords.count > recordsToPersist.count
+                recordsToPersist = mergedRecords
+            }
+        }
+
+        guard !Task.isCancelled,
+              lockTransitionIsCurrent(expectedSettingsGeneration: expectedSettingsGeneration)
+        else {
+            await restoreRegularSnippetPersistenceAfterAbortedLock(recordsToPersist)
+            recordsToPersist.removeAll(keepingCapacity: false)
+            reportLockFailure("Locking was canceled before it completed.")
+            return false
+        }
+
+        if settings.persistHistory {
+            let saveGeneration = nextVaultOperationGeneration()
+            let saved = await snippetStore.saveSnippets(
+                recordsToPersist,
+                requireUserPresence: true,
+                generation: saveGeneration
+            )
+            guard saved else {
+                recordsToPersist.removeAll(keepingCapacity: false)
+                reportLockFailure("Saved snippets could not be protected. CoPaRe stayed unlocked.")
+                return false
+            }
+            pendingSnippetDeletionIDs.subtract(deletionIDsToPersist)
+
+            guard !Task.isCancelled,
+                  lockTransitionIsCurrent(expectedSettingsGeneration: expectedSettingsGeneration)
+            else {
+                await restoreRegularSnippetPersistenceAfterAbortedLock(recordsToPersist)
+                recordsToPersist.removeAll(keepingCapacity: false)
+                reportLockFailure("Locking was canceled before it completed.")
+                return false
+            }
+
+            hasSavedSnippetsAvailable = !recordsToPersist.isEmpty
+            savedSnippetsLoaded = !keepSavedSnippetsUnloaded
+        }
+
+        // Do not retain plaintext persistence records across the lock commit.
+        recordsToPersist.removeAll(keepingCapacity: false)
+        lockedSnapshotEnvelope = preparedSnapshot.envelope
         items = []
         EncryptedClipboardPayload.rotateSessionProtectionKey()
         isLocked = true
         syncCaptureServiceMonitoringState()
+        return true
     }
 
     func unlock() async {
-        guard settings.lockProtectionEnabled, isLocked else {
+        guard settings.lockProtectionEnabled, isLocked, !isVaultTransitioning else {
             return
         }
 
@@ -401,6 +536,10 @@ final class ClipboardManager: ObservableObject {
     }
 
     func togglePin(itemID: UUID) {
+        guard !isLocked, !isVaultTransitioning else {
+            return
+        }
+
         guard let index = items.firstIndex(where: { $0.id == itemID }) else {
             return
         }
@@ -427,8 +566,15 @@ final class ClipboardManager: ObservableObject {
     }
 
     func remove(itemID: UUID, immediatelyPersist: Bool = true) {
+        guard !isLocked, !isVaultTransitioning else {
+            return
+        }
+
         let originalCount = items.count
         let removedSnippet = items.first(where: { $0.id == itemID })?.isSnippet ?? false
+        if removedSnippet {
+            pendingSnippetDeletionIDs.insert(itemID)
+        }
         items.removeAll(where: { $0.id == itemID })
         guard items.count != originalCount else {
             return
@@ -448,6 +594,10 @@ final class ClipboardManager: ObservableObject {
     }
 
     func clearHistory(keepPinned: Bool) {
+        guard !isLocked, !isVaultTransitioning else {
+            return
+        }
+
         if keepPinned {
             items = items.filter { $0.isPinned || $0.isSnippet }
             sortAndTrim()
@@ -460,34 +610,60 @@ final class ClipboardManager: ObservableObject {
     }
 
     func secureWipeEntireHistory() {
+        guard !isVaultTransitioning else {
+            return
+        }
+
+        isVaultTransitioning = true
         items = []
         persistTask?.cancel()
+        persistTask = nil
+        let generation = nextVaultOperationGeneration()
         lockedSnapshotEnvelope = nil
         EncryptedClipboardPayload.rotateSessionProtectionKey()
+        captureService.resetPasteboardBaseline()
         mutateSecurityCounters { $0.secureWipes += 1 }
         secureWipeMessage = nil
         secureWipeFailed = false
+        syncCaptureServiceMonitoringState()
 
         Task { @MainActor [weak self] in
             guard let self else {
                 return
             }
+            defer {
+                self.isVaultTransitioning = false
+                if !self.isLocked {
+                    self.refreshCapturedItemExpiryAndPrune()
+                }
+                self.syncCaptureServiceMonitoringState()
+            }
 
-            let wipeSucceeded = await snippetStore.clearSnippetsFile()
+            let wipeSucceeded = await snippetStore.clearSnippetsFile(generation: generation)
+            guard generation == vaultOperationGeneration else {
+                return
+            }
             if wipeSucceeded {
                 secureWipeMessage = "Secure wipe completed. History and vault keys were removed."
                 secureWipeFailed = false
+                hasSavedSnippetsAvailable = false
+                savedSnippetsLoaded = true
+                pendingSnippetDeletionIDs.removeAll()
             } else {
-                secureWipeMessage = "Secure wipe completed with warnings. At least one vault key could not be removed (authentication may have been canceled). Run wipe again and approve the macOS prompt."
+                let stillHasSavedSnippets = await snippetStore.hasSavedSnippets()
+                guard generation == vaultOperationGeneration else {
+                    return
+                }
+                hasSavedSnippetsAvailable = stillHasSavedSnippets
+                savedSnippetsLoaded = !stillHasSavedSnippets
+                secureWipeMessage = "Secure wipe could not remove all saved snippet data or vault keys (authentication may have been canceled). Run wipe again and approve the macOS prompt."
                 secureWipeFailed = true
             }
         }
-        hasSavedSnippetsAvailable = false
-        savedSnippetsLoaded = true
     }
 
     func addSnippet(title: String, body: String, tags: [String] = []) {
-        guard !isLocked else {
+        guard !isLocked, !isVaultTransitioning else {
             return
         }
 
@@ -502,6 +678,10 @@ final class ClipboardManager: ObservableObject {
     }
 
     func exportSnippets(to url: URL) -> Bool {
+        guard !isLocked, !isVaultTransitioning else {
+            return false
+        }
+
         let exportItems = items
             .filter(\.isSnippet)
             .compactMap { item -> SnippetExportItem? in
@@ -539,7 +719,7 @@ final class ClipboardManager: ObservableObject {
 
     @discardableResult
     func importSnippets(from url: URL) -> Int {
-        guard !isLocked else {
+        guard !isLocked, !isVaultTransitioning else {
             return 0
         }
 
@@ -653,7 +833,7 @@ final class ClipboardManager: ObservableObject {
     }
 
     func revealFiles(of item: ClipboardHistoryItem) {
-        guard !isLocked else {
+        guard !isLocked, !isVaultTransitioning else {
             return
         }
 
@@ -666,31 +846,42 @@ final class ClipboardManager: ObservableObject {
     }
 
     func loadSavedSnippets() async {
-        guard !isLocked else {
+        guard !isLocked, !isVaultTransitioning else {
             return
         }
 
         guard settings.persistHistory else {
-            hasSavedSnippetsAvailable = false
-            savedSnippetsLoaded = true
             return
         }
 
+        let generation = vaultOperationGeneration
         guard let stored = await snippetStore.loadSnippets() else {
+            return
+        }
+        guard generation == vaultOperationGeneration,
+              !isLocked,
+              !isVaultTransitioning,
+              settings.persistHistory
+        else {
             return
         }
         let currentSnippets = items.filter(\.isSnippet)
         let currentSnippetIDs = Set(currentSnippets.map(\.id))
-        let mergedSnippets = currentSnippets + stored.filter { !currentSnippetIDs.contains($0.id) }
+        let mergedSnippets = currentSnippets + stored.filter {
+            !pendingSnippetDeletionIDs.contains($0.id) && !currentSnippetIDs.contains($0.id)
+        }
 
         items = items.filter { !$0.isSnippet } + mergedSnippets
         sortAndTrim()
         hasSavedSnippetsAvailable = !mergedSnippets.isEmpty
         savedSnippetsLoaded = true
+        if !pendingSnippetDeletionIDs.isEmpty {
+            scheduleSnippetPersist(immediately: true)
+        }
     }
 
     private func handleCapture(_ capture: CapturedClipboardItem) {
-        guard !isLocked else {
+        guard !isLocked, !isVaultTransitioning else {
             return
         }
 
@@ -708,6 +899,8 @@ final class ClipboardManager: ObservableObject {
                 ? nil
                 : expirationDate
             items[existingIndex].captureCount += 1
+            items[existingIndex].sourceBundleIdentifier = capture.sourceBundleIdentifier
+            items[existingIndex].searchIndex = capture.searchIndex
             sortAndTrim()
             return
         }
@@ -734,27 +927,100 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func applySettingsChanges() {
+        settingsGeneration += 1
+        let expectedSettingsGeneration = settingsGeneration
+        let lockProtectionChanged = settings.lockProtectionEnabled != appliedLockProtectionEnabled
+        appliedLockProtectionEnabled = settings.lockProtectionEnabled
+        let persistenceChanged = settings.persistHistory != appliedPersistenceEnabled
+        appliedPersistenceEnabled = settings.persistHistory
+
         captureService.applySettings()
         configureExpirationTimer()
 
-        for index in items.indices where !items[index].isSnippet && !items[index].isPinned {
-            items[index].expiresAt = expirationDate(
-                for: items[index].origin,
-                from: items[index].updatedAt,
-                sourceBundleIdentifier: items[index].sourceBundleIdentifier,
-                preview: items[index].preview
-            )
+        if !isVaultTransitioning {
+            for index in items.indices where !items[index].isSnippet && !items[index].isPinned {
+                items[index].expiresAt = expirationDate(
+                    for: items[index].origin,
+                    from: items[index].updatedAt,
+                    sourceBundleIdentifier: items[index].sourceBundleIdentifier,
+                    preview: items[index].preview
+                )
+            }
+        }
+
+        if !settings.persistHistory {
+            if persistenceChanged || disabledPersistenceCleanupFailed {
+                scheduleDisabledPersistenceCleanup()
+            }
+        } else {
+            disabledPersistenceCleanupFailed = false
         }
 
         if settings.lockProtectionEnabled {
-            if !isLocked {
-                lock()
+            if lockProtectionChanged, !isLocked {
+                Task { @MainActor [weak self] in
+                    guard let self else {
+                        return
+                    }
+
+                    let locked = await self.lock(expectedSettingsGeneration: expectedSettingsGeneration)
+                    guard !locked,
+                          !self.isLocked,
+                          self.settings.lockProtectionEnabled
+                    else {
+                        return
+                    }
+
+                    if self.settings.securityPreset == .strict {
+                        self.settings.applySecurityPreset(.balanced)
+                    } else {
+                        self.settings.lockProtectionEnabled = false
+                    }
+                }
+                return
             } else {
                 syncCaptureServiceMonitoringState()
             }
         } else {
-            isLocked = false
+            guard !isLocked else {
+                // Disabling protection must never expose or strand a locked
+                // snapshot without authenticating and restoring it first.
+                appliedLockProtectionEnabled = true
+                settings.lockProtectionEnabled = true
+                return
+            }
+
+            if lockProtectionChanged, settings.persistHistory {
+                if !isVaultTransitioning {
+                    Task { @MainActor [weak self] in
+                        guard let self else {
+                            return
+                        }
+
+                        let migrated = await self.migrateSavedSnippetsToRegularKey(
+                            expectedSettingsGeneration: expectedSettingsGeneration
+                        )
+                        guard !migrated,
+                              !self.isLocked,
+                              !self.settings.lockProtectionEnabled,
+                              self.settings.persistHistory
+                        else {
+                            return
+                        }
+
+                        // Keep protection enabled if the protected vault could
+                        // not be opened or re-encrypted with the regular key.
+                        self.appliedLockProtectionEnabled = true
+                        self.settings.lockProtectionEnabled = true
+                    }
+                }
+                return
+            }
             syncCaptureServiceMonitoringState()
+        }
+
+        guard !isVaultTransitioning else {
+            return
         }
 
         _ = pruneExpiredItems()
@@ -769,28 +1035,81 @@ final class ClipboardManager: ObservableObject {
                         return
                     }
 
-                    self.hasSavedSnippetsAvailable = await self.snippetStore.hasSavedSnippets()
+                    let generation = self.vaultOperationGeneration
+                    let hasSavedSnippets = await self.snippetStore.hasSavedSnippets()
+                    guard generation == self.vaultOperationGeneration,
+                          self.settings.persistHistory
+                    else {
+                        return
+                    }
+                    self.hasSavedSnippetsAvailable = hasSavedSnippets
                     self.savedSnippetsLoaded = !self.hasSavedSnippetsAvailable
                 }
             }
-        } else {
-            hasSavedSnippetsAvailable = false
-            savedSnippetsLoaded = true
-            Task {
-                await snippetStore.clearSnippetsFile()
-            }
         }
-
     }
 
     private func loadInitialState() async {
+        let generation = vaultOperationGeneration
         if settings.persistHistory {
-            hasSavedSnippetsAvailable = await snippetStore.hasSavedSnippets()
+            let hasSavedSnippets = await snippetStore.hasSavedSnippets()
+            guard generation == vaultOperationGeneration,
+                  settings.persistHistory
+            else {
+                return
+            }
+            hasSavedSnippetsAvailable = hasSavedSnippets
             savedSnippetsLoaded = !hasSavedSnippetsAvailable
         } else {
+            persistTask?.cancel()
+            persistTask = nil
+            let cleanupGeneration = nextVaultOperationGeneration()
+            await performDisabledPersistenceCleanup(generation: cleanupGeneration)
+        }
+    }
+
+    private func scheduleDisabledPersistenceCleanup() {
+        guard !settings.persistHistory else {
+            return
+        }
+
+        persistTask?.cancel()
+        persistTask = nil
+        disabledPersistenceCleanupFailed = false
+        let cleanupGeneration = nextVaultOperationGeneration()
+        Task { @MainActor [weak self] in
+            await self?.performDisabledPersistenceCleanup(generation: cleanupGeneration)
+        }
+    }
+
+    private func performDisabledPersistenceCleanup(generation: Int) async {
+        let succeeded = await snippetStore.clearSnippetsFile(generation: generation)
+        guard generation == vaultOperationGeneration, !settings.persistHistory else {
+            return
+        }
+
+        if succeeded {
             hasSavedSnippetsAvailable = false
             savedSnippetsLoaded = true
+            pendingSnippetDeletionIDs.removeAll()
+            disabledPersistenceCleanupFailed = false
+            if lockFailureMessage?.hasPrefix("Saved snippet cleanup") == true {
+                lockFailureMessage = nil
+            }
+            return
         }
+
+        let stillHasSavedSnippets = await snippetStore.hasSavedSnippets()
+        guard generation == vaultOperationGeneration, !settings.persistHistory else {
+            return
+        }
+
+        hasSavedSnippetsAvailable = stillHasSavedSnippets
+        savedSnippetsLoaded = !stillHasSavedSnippets
+        disabledPersistenceCleanupFailed = true
+        reportLockFailure(
+            "Saved snippet cleanup was incomplete. Some vault data or keys may remain; toggle saving on and off again or relaunch, then approve the macOS authentication prompt."
+        )
     }
 
     private func configureExpirationTimer() {
@@ -837,10 +1156,27 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func handleExpirationSweep() {
+        guard !isLocked, !isVaultTransitioning else {
+            return
+        }
+
         guard pruneExpiredItems() else {
             return
         }
 
+        sortAndTrim()
+    }
+
+    private func refreshCapturedItemExpiryAndPrune() {
+        for index in items.indices where !items[index].isSnippet && !items[index].isPinned {
+            items[index].expiresAt = expirationDate(
+                for: items[index].origin,
+                from: items[index].updatedAt,
+                sourceBundleIdentifier: items[index].sourceBundleIdentifier,
+                preview: items[index].preview
+            )
+        }
+        _ = pruneExpiredItems()
         sortAndTrim()
     }
 
@@ -919,11 +1255,16 @@ final class ClipboardManager: ObservableObject {
 
     private func scheduleSnippetPersist(immediately: Bool = false) {
         persistTask?.cancel()
+        persistTask = nil
 
-        let currentSnapshot = items.filter(\.isSnippet)
-        let persistSnippets = settings.persistHistory
-        let hasStoredSnippets = hasSavedSnippetsAvailable
-        let areStoredSnippetsLoaded = savedSnippetsLoaded
+        guard settings.persistHistory else {
+            return
+        }
+        guard !isLocked, !isVaultTransitioning else {
+            return
+        }
+
+        let generation = nextVaultOperationGeneration()
         let requireUserPresence = settings.lockProtectionEnabled
         persistTask = Task { @MainActor [weak self] in
             guard let self else {
@@ -938,45 +1279,252 @@ final class ClipboardManager: ObservableObject {
                 return
             }
 
-            if persistSnippets {
-                var snippetsToPersist = currentSnapshot
-                var keepSavedSnippetsUnloaded = false
+            guard generation == self.vaultOperationGeneration,
+                  self.settings.persistHistory,
+                  !self.isLocked,
+                  !self.isVaultTransitioning,
+                  let currentRecords = self.snippetPersistenceRecords(from: self.items)
+            else {
+                return
+            }
 
-                if hasStoredSnippets && !areStoredSnippetsLoaded {
-                    guard let storedSnippets = await snippetStore.loadSnippets() else {
-                        self.hasSavedSnippetsAvailable = true
-                        self.savedSnippetsLoaded = false
-                        return
-                    }
+            let deletionIDsToPersist = self.pendingSnippetDeletionIDs
+            var recordsToPersist = currentRecords.filter { !deletionIDsToPersist.contains($0.id) }
+            var keepSavedSnippetsUnloaded = false
 
-                    snippetsToPersist = self.mergedSnippetsForPersistence(
-                        currentSnippets: currentSnapshot,
-                        storedSnippets: storedSnippets
-                    )
-                    keepSavedSnippetsUnloaded = !storedSnippets.isEmpty
+            if self.hasSavedSnippetsAvailable, !self.savedSnippetsLoaded {
+                guard let storedRecords = await self.snippetStore.loadSnippetRecords() else {
+                    self.hasSavedSnippetsAvailable = true
+                    self.savedSnippetsLoaded = false
+                    return
+                }
+                guard !Task.isCancelled,
+                      generation == self.vaultOperationGeneration,
+                      self.settings.persistHistory,
+                      !self.isLocked,
+                      !self.isVaultTransitioning
+                else {
+                    return
                 }
 
-                await snippetStore.saveSnippets(snippetsToPersist, requireUserPresence: requireUserPresence)
-                self.hasSavedSnippetsAvailable = !snippetsToPersist.isEmpty
-                self.savedSnippetsLoaded = keepSavedSnippetsUnloaded ? false : true
-            } else {
-                self.hasSavedSnippetsAvailable = false
-                self.savedSnippetsLoaded = true
+                let mergedRecords = self.mergedSnippetRecordsForPersistence(
+                    currentRecords: recordsToPersist,
+                    storedRecords: storedRecords,
+                    excluding: deletionIDsToPersist
+                )
+                keepSavedSnippetsUnloaded = mergedRecords.count > recordsToPersist.count
+                recordsToPersist = mergedRecords
             }
+
+            let saved = await self.snippetStore.saveSnippets(
+                recordsToPersist,
+                requireUserPresence: requireUserPresence,
+                generation: generation
+            )
+            guard saved else {
+                if generation == self.vaultOperationGeneration,
+                   self.settings.persistHistory,
+                   !self.isLocked,
+                   !self.isVaultTransitioning
+                {
+                    self.reportLockFailure(
+                        "Saved snippet changes could not be written. They remain available in this session; make another snippet change to retry."
+                    )
+                }
+                return
+            }
+
+            guard !Task.isCancelled,
+                  generation == self.vaultOperationGeneration,
+                  self.settings.persistHistory,
+                  !self.isLocked,
+                  !self.isVaultTransitioning
+            else {
+                return
+            }
+
+            self.hasSavedSnippetsAvailable = !recordsToPersist.isEmpty
+            self.savedSnippetsLoaded = !keepSavedSnippetsUnloaded
+            self.pendingSnippetDeletionIDs.subtract(deletionIDsToPersist)
         }
     }
 
-    private func mergedSnippetsForPersistence(
-        currentSnippets: [ClipboardHistoryItem],
-        storedSnippets: [ClipboardHistoryItem]
-    ) -> [ClipboardHistoryItem] {
-        let currentIDs = Set(currentSnippets.map(\.id))
-        let currentDigests = Set(currentSnippets.map(\.digest))
-        let uniqueStoredSnippets = storedSnippets.filter { snippet in
-            !currentIDs.contains(snippet.id) && !currentDigests.contains(snippet.digest)
+    private func migrateSavedSnippetsToRegularKey(
+        expectedSettingsGeneration: Int
+    ) async -> Bool {
+        guard !isLocked,
+              !isVaultTransitioning,
+              !settings.lockProtectionEnabled,
+              settings.persistHistory,
+              expectedSettingsGeneration == settingsGeneration
+        else {
+            return false
         }
 
-        return currentSnippets + uniqueStoredSnippets
+        isVaultTransitioning = true
+        persistTask?.cancel()
+        persistTask = nil
+        _ = nextVaultOperationGeneration()
+        syncCaptureServiceMonitoringState()
+
+        defer {
+            isVaultTransitioning = false
+            if !isLocked {
+                refreshCapturedItemExpiryAndPrune()
+            }
+            syncCaptureServiceMonitoringState()
+        }
+
+        guard var recordsToPersist = snippetPersistenceRecords(from: items) else {
+            reportLockFailure("Saved snippets could not be re-encrypted. Protection remains enabled.")
+            return false
+        }
+        let deletionIDsToPersist = pendingSnippetDeletionIDs
+        recordsToPersist.removeAll { deletionIDsToPersist.contains($0.id) }
+
+        var keepSavedSnippetsUnloaded = false
+        let hasStoredSnippets = await snippetStore.hasSavedSnippets()
+        if hasStoredSnippets {
+            guard let storedRecords = await snippetStore.loadSnippetRecords() else {
+                recordsToPersist.removeAll(keepingCapacity: false)
+                reportLockFailure("Saved snippets could not be opened. Protection remains enabled.")
+                return false
+            }
+            let mergedRecords = mergedSnippetRecordsForPersistence(
+                currentRecords: recordsToPersist,
+                storedRecords: storedRecords,
+                excluding: deletionIDsToPersist
+            )
+            keepSavedSnippetsUnloaded = mergedRecords.count > recordsToPersist.count
+            recordsToPersist = mergedRecords
+        }
+
+        guard !Task.isCancelled,
+              expectedSettingsGeneration == settingsGeneration,
+              !settings.lockProtectionEnabled,
+              settings.persistHistory,
+              !isLocked,
+              isVaultTransitioning
+        else {
+            recordsToPersist.removeAll(keepingCapacity: false)
+            reportLockFailure("The vault change was canceled because settings changed.")
+            return false
+        }
+
+        let saveGeneration = nextVaultOperationGeneration()
+        let saved = await snippetStore.saveSnippets(
+            recordsToPersist,
+            requireUserPresence: false,
+            generation: saveGeneration
+        )
+        let hasRecords = !recordsToPersist.isEmpty
+        recordsToPersist.removeAll(keepingCapacity: false)
+
+        guard saved else {
+            reportLockFailure("Saved snippets could not be re-encrypted. Protection remains enabled.")
+            return false
+        }
+        pendingSnippetDeletionIDs.subtract(deletionIDsToPersist)
+
+        // The migration is complete even if an unrelated setting changed
+        // after the atomic store write, provided protection is still off.
+        guard !settings.lockProtectionEnabled, settings.persistHistory, !isLocked else {
+            return false
+        }
+
+        hasSavedSnippetsAvailable = hasRecords
+        savedSnippetsLoaded = !keepSavedSnippetsUnloaded
+        return true
+    }
+
+    @discardableResult
+    private func restoreRegularSnippetPersistenceAfterAbortedLock(
+        _ records: [SnippetPersistenceRecord]
+    ) async -> Bool {
+        guard !settings.lockProtectionEnabled, settings.persistHistory else {
+            return true
+        }
+
+        let deletionIDsToPersist = pendingSnippetDeletionIDs
+        let retainedRecords = records.filter { !deletionIDsToPersist.contains($0.id) }
+        let saveGeneration = nextVaultOperationGeneration()
+        let saved = await snippetStore.saveSnippets(
+            retainedRecords,
+            requireUserPresence: false,
+            generation: saveGeneration
+        )
+        if saved {
+            pendingSnippetDeletionIDs.subtract(deletionIDsToPersist)
+            if !settings.lockProtectionEnabled, settings.persistHistory {
+                hasSavedSnippetsAvailable = !retainedRecords.isEmpty
+            }
+            return true
+        }
+
+        // A protected store must not be presented as unprotected if the
+        // compensating migration failed.
+        if !settings.lockProtectionEnabled, settings.persistHistory {
+            appliedLockProtectionEnabled = true
+            settings.lockProtectionEnabled = true
+        }
+        return false
+    }
+
+    private func lockTransitionIsCurrent(expectedSettingsGeneration: Int) -> Bool {
+        expectedSettingsGeneration == settingsGeneration
+            && settings.lockProtectionEnabled
+            && !isLocked
+            && isVaultTransitioning
+    }
+
+    private func nextVaultOperationGeneration() -> Int {
+        vaultOperationGeneration += 1
+        return vaultOperationGeneration
+    }
+
+    private func reportLockFailure(_ message: String) {
+        logger.error("\(message, privacy: .public)")
+        lockFailureMessage = message
+    }
+
+    private func snippetPersistenceRecords(
+        from sourceItems: [ClipboardHistoryItem]
+    ) -> [SnippetPersistenceRecord]? {
+        var records: [SnippetPersistenceRecord] = []
+        for item in sourceItems where item.isSnippet {
+            guard let body = item.decryptedPayload()?.plainText else {
+                return nil
+            }
+            records.append(
+                SnippetPersistenceRecord(
+                    id: item.id,
+                    preview: item.preview,
+                    body: body,
+                    createdAt: item.createdAt,
+                    updatedAt: item.updatedAt,
+                    pinnedAt: item.pinnedAt,
+                    tags: item.tags
+                )
+            )
+        }
+        return records
+    }
+
+    private func mergedSnippetRecordsForPersistence(
+        currentRecords: [SnippetPersistenceRecord],
+        storedRecords: [SnippetPersistenceRecord],
+        excluding deletionIDs: Set<UUID>
+    ) -> [SnippetPersistenceRecord] {
+        let retainedCurrentRecords = currentRecords.filter { !deletionIDs.contains($0.id) }
+        let currentIDs = Set(retainedCurrentRecords.map(\.id))
+        let currentDigests = Set(retainedCurrentRecords.map(\.digest))
+        let uniqueStoredRecords = storedRecords.filter { record in
+            !deletionIDs.contains(record.id)
+                && !currentIDs.contains(record.id)
+                && !currentDigests.contains(record.digest)
+        }
+
+        return retainedCurrentRecords + uniqueStoredRecords
     }
 
     private func plainTextRepresentation(for item: ClipboardHistoryItem) -> String? {
@@ -1046,19 +1594,27 @@ final class ClipboardManager: ObservableObject {
             privacyPauseTimer = nil
         }
 
-        captureService.isMonitoringEnabled = isMonitoringEnabled && !isLocked && privacyPauseUntil == nil
+        captureService.isMonitoringEnabled = isMonitoringEnabled
+            && !isLocked
+            && !isVaultTransitioning
+            && privacyPauseUntil == nil
     }
 
-    private func prepareLockedSnapshot() -> Bool {
+    private func prepareLockedSnapshot() -> PreparedLockedSnapshot? {
         guard !items.isEmpty else {
-            lockedSnapshotEnvelope = nil
-            return true
+            return .empty
         }
 
-        let snapshot = LockedClipboardSnapshot(
-            version: 1,
-            lockedAt: Date(),
-            items: items.map { item in
+        var snapshotItems: [LockedClipboardSnapshotItem] = []
+        snapshotItems.reserveCapacity(items.count)
+        for item in items {
+            let payload = item.decryptedPayload()
+            guard item.encryptedPayload == nil || payload != nil else {
+                logger.error("Unable to decrypt an item while preparing the lock snapshot")
+                return nil
+            }
+
+            snapshotItems.append(
                 LockedClipboardSnapshotItem(
                     id: item.id,
                     type: item.type,
@@ -1069,7 +1625,7 @@ final class ClipboardManager: ObservableObject {
                     preview: item.preview,
                     searchIndex: item.searchIndex,
                     thumbnailPNGData: item.thumbnailPNGData,
-                    payload: item.decryptedPayload(),
+                    payload: payload,
                     digest: item.digest,
                     byteSize: item.byteSize,
                     origin: item.origin,
@@ -1077,7 +1633,13 @@ final class ClipboardManager: ObservableObject {
                     sourceBundleIdentifier: item.sourceBundleIdentifier,
                     tags: item.tags
                 )
-            }
+            )
+        }
+
+        let snapshot = LockedClipboardSnapshot(
+            version: 1,
+            lockedAt: Date(),
+            items: snapshotItems
         )
 
         let encryptionKey: SymmetricKey
@@ -1085,15 +1647,14 @@ final class ClipboardManager: ObservableObject {
             encryptionKey = try lockSnapshotKeyProvider.loadOrCreateKey()
         } catch {
             logger.error("Unable to load lock snapshot key: \(String(describing: error), privacy: .public)")
-            return false
+            return nil
         }
 
         guard let envelope = try? sealLockedSnapshot(snapshot, using: encryptionKey) else {
-            return false
+            return nil
         }
 
-        lockedSnapshotEnvelope = envelope
-        return true
+        return .encrypted(envelope)
     }
 
     private func sealLockedSnapshot(
@@ -1130,7 +1691,7 @@ final class ClipboardManager: ObservableObject {
         }
 
         items = restoredItems
-        sortAndTrim()
+        refreshCapturedItemExpiryAndPrune()
         lockedSnapshotEnvelope = nil
         return true
     }
@@ -1147,11 +1708,14 @@ final class ClipboardManager: ObservableObject {
         )
         let decryptedData = try AES.GCM.open(sealedBox, using: key)
         let snapshot = try JSONDecoder().decode(LockedClipboardSnapshot.self, from: decryptedData)
+        guard snapshot.version == 1 else {
+            throw CocoaError(.coderReadCorrupt)
+        }
 
-        return snapshot.items.map { item in
+        return try snapshot.items.map { item in
             let runtimePayload: EncryptedClipboardPayload?
             if let payload = item.payload {
-                runtimePayload = try? EncryptedClipboardPayload.seal(payload)
+                runtimePayload = try EncryptedClipboardPayload.seal(payload)
             } else {
                 runtimePayload = nil
             }

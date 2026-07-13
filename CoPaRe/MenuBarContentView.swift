@@ -18,17 +18,21 @@ struct MenuBarContentView: View {
                         await manager.unlock()
                     }
                 }
+                .disabled(manager.isVaultTransitioning)
             } else {
                 Button("Lock CoPaRe") {
-                    manager.lock()
+                    Task {
+                        await manager.lock()
+                    }
                 }
+                .disabled(manager.isVaultTransitioning)
             }
         }
 
         Button(manager.isMonitoringEnabled ? "Pause monitoring" : "Resume monitoring") {
             manager.toggleMonitoring()
         }
-        .disabled(manager.isLocked)
+        .disabled(manager.isLocked || manager.isVaultTransitioning)
 
         Menu("Privacy Pause") {
             Button("5 Minutes") {
@@ -47,12 +51,12 @@ struct MenuBarContentView: View {
                 }
             }
         }
-        .disabled(manager.isLocked)
+        .disabled(manager.isLocked || manager.isVaultTransitioning)
 
         Button("Clear unpinned history", role: .destructive) {
             manager.clearHistory(keepPinned: true)
         }
-        .disabled(manager.isLocked)
+        .disabled(manager.isLocked || manager.isVaultTransitioning)
 
         if manager.menuItems.isEmpty {
             Text(manager.isLocked ? "CoPaRe is locked" : "No clipboard history yet")

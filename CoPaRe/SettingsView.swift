@@ -8,6 +8,8 @@ struct SettingsView: View {
     @EnvironmentObject private var updates: AppUpdateChecker
     @State private var isShowingSecureWipeConfirmation = false
     @State private var snippetTransferMessage: String?
+    @State private var excludedAppsDraft = ""
+    @State private var appCaptureRulesDraft = ""
 
     private var panelColor: Color {
         Color(nsColor: NSColor.controlBackgroundColor)
@@ -28,6 +30,7 @@ struct SettingsView: View {
                             Text(preset.label).tag(preset)
                         }
                     }
+                    .disabled(manager.isLocked)
 
                     Text(settings.securityPreset.summary)
                         .font(.footnote)
@@ -100,12 +103,13 @@ struct SettingsView: View {
                             importSnippets()
                         }
                         .buttonStyle(.bordered)
+                        .disabled(manager.isLocked)
 
                         Button("Export Snippets") {
                             exportSnippets()
                         }
                         .buttonStyle(.bordered)
-                        .disabled(!manager.items.contains(where: \.isSnippet))
+                        .disabled(manager.isLocked || !manager.items.contains(where: \.isSnippet))
                     }
 
                     if let snippetTransferMessage {
@@ -120,13 +124,21 @@ struct SettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
-                    TextEditor(text: $settings.excludedAppsRawText)
+                    TextEditor(text: $excludedAppsDraft)
                         .font(.system(size: 12, weight: .regular, design: .monospaced))
                         .frame(minHeight: 110)
                         .overlay(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .strokeBorder(Color.secondary.opacity(0.18), lineWidth: 1)
                         )
+
+                    HStack {
+                        Spacer()
+                        Button("Apply Exclusions") {
+                            commitExcludedAppsDraft()
+                        }
+                        .disabled(excludedAppsDraft == settings.excludedAppsRawText)
+                    }
                 }
 
                 sectionCard(title: "Per-App Rules") {
@@ -134,13 +146,21 @@ struct SettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
 
-                    TextEditor(text: $settings.appCaptureRulesRawText)
+                    TextEditor(text: $appCaptureRulesDraft)
                         .font(.system(size: 12, weight: .regular, design: .monospaced))
                         .frame(minHeight: 110)
                         .overlay(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .strokeBorder(Color.secondary.opacity(0.18), lineWidth: 1)
                         )
+
+                    HStack {
+                        Spacer()
+                        Button("Apply Rules") {
+                            commitAppCaptureRulesDraft()
+                        }
+                        .disabled(appCaptureRulesDraft == settings.appCaptureRulesRawText)
+                    }
                 }
 
                 sectionCard(title: "Security Events") {
@@ -202,6 +222,14 @@ struct SettingsView: View {
         }
         .frame(width: 620, height: 760)
         .background(Color(nsColor: NSColor.windowBackgroundColor))
+        .onAppear {
+            excludedAppsDraft = settings.excludedAppsRawText
+            appCaptureRulesDraft = settings.appCaptureRulesRawText
+        }
+        .onDisappear {
+            commitExcludedAppsDraft()
+            commitAppCaptureRulesDraft()
+        }
         .alert("Secure wipe entire history?", isPresented: $isShowingSecureWipeConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Secure Wipe", role: .destructive) {
@@ -245,6 +273,16 @@ struct SettingsView: View {
             Text(value)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private func commitExcludedAppsDraft() {
+        settings.excludedAppsRawText = excludedAppsDraft
+        excludedAppsDraft = settings.excludedAppsRawText
+    }
+
+    private func commitAppCaptureRulesDraft() {
+        settings.appCaptureRulesRawText = appCaptureRulesDraft
+        appCaptureRulesDraft = settings.appCaptureRulesRawText
     }
 
     private func exportSnippets() {

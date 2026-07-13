@@ -13,9 +13,22 @@ final class GlobalHotKeyService: ObservableObject {
     private let logger = Logger(subsystem: "io.copare.app", category: "hotkey")
     private var eventHandlerRef: EventHandlerRef?
     private var hotKeyRef: EventHotKeyRef?
+    private var settingsCancellable: AnyCancellable?
 
     var onHotKeyPressed: (() -> Void)?
     private(set) var isRegistered = false
+
+    func configure(settings: SettingsStore, windowCoordinator: WindowCoordinator) {
+        onHotKeyPressed = { [weak windowCoordinator] in
+            windowCoordinator?.openMainWindow(focusSearch: true)
+        }
+
+        settingsCancellable = settings.$globalShortcutEnabled
+            .removeDuplicates()
+            .sink { [weak self] enabled in
+                self?.setEnabled(enabled)
+            }
+    }
 
     func setEnabled(_ enabled: Bool) {
         if enabled {

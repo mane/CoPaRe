@@ -156,7 +156,7 @@ struct ClipboardHistoryItem: Identifiable, Hashable, Sendable {
     let byteSize: Int
     let origin: ClipboardItemOrigin
     var captureCount: Int
-    let sourceBundleIdentifier: String?
+    var sourceBundleIdentifier: String?
     var tags: [String]
 
     nonisolated var isPinned: Bool {
@@ -234,10 +234,13 @@ struct ClipboardHistoryItem: Identifiable, Hashable, Sendable {
     nonisolated static func normalizedTags(_ tags: [String]) -> [String] {
         var seen = Set<String>()
         return tags.compactMap { rawTag in
-            let tag = rawTag
+            var tag = rawTag
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()
-                .replacingOccurrences(of: "#", with: "")
+
+            if tag.hasPrefix("#") {
+                tag.removeFirst()
+            }
 
             guard !tag.isEmpty, tag.count <= 32, seen.insert(tag).inserted else {
                 return nil
@@ -253,6 +256,10 @@ struct ClipboardHistoryItem: Identifiable, Hashable, Sendable {
 }
 
 private enum ClipboardPayloadProtector {
+    private enum ProtectionError: Error {
+        case unsupportedVersion(Int)
+    }
+
     private nonisolated static let sessionKeyLock = NSLock()
     private nonisolated(unsafe) static var sessionKey = SymmetricKey(size: .bits256)
 
@@ -270,6 +277,10 @@ private enum ClipboardPayloadProtector {
     }
 
     nonisolated static func open(_ encryptedPayload: EncryptedClipboardPayload) throws -> ClipboardItemPayload {
+        guard encryptedPayload.version == 1 else {
+            throw ProtectionError.unsupportedVersion(encryptedPayload.version)
+        }
+
         let nonce = try AES.GCM.Nonce(data: encryptedPayload.nonce)
         let sealedBox = try AES.GCM.SealedBox(
             nonce: nonce,

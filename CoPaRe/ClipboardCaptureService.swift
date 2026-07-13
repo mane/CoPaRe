@@ -22,6 +22,7 @@ final class ClipboardCaptureService {
 
     private let pasteboard: NSPasteboard
     private let settings: SettingsStore
+    private let sourceBundleIdentifierProvider: () -> String?
 
     private var timer: Timer?
     private var lastChangeCount: Int
@@ -46,9 +47,16 @@ final class ClipboardCaptureService {
         }
     }
 
-    init(pasteboard: NSPasteboard = .general, settings: SettingsStore) {
+    init(
+        pasteboard: NSPasteboard = .general,
+        settings: SettingsStore,
+        sourceBundleIdentifierProvider: @escaping () -> String? = {
+            NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased()
+        }
+    ) {
         self.pasteboard = pasteboard
         self.settings = settings
+        self.sourceBundleIdentifierProvider = sourceBundleIdentifierProvider
         lastChangeCount = pasteboard.changeCount
     }
 
@@ -88,18 +96,20 @@ final class ClipboardCaptureService {
             if let data = payload?.imagePNGData {
                 // Keep exact PNG bytes to avoid re-encoding drift that would break deduplication.
                 pasteboard.clearContents()
-                pasteboard.setData(data, forType: .png)
-                expectedDigestToIgnore = digest(data: data)
+                if pasteboard.setData(data, forType: .png) {
+                    expectedDigestToIgnore = digest(data: data)
+                }
             }
         case .file:
             let urls = (payload?.filePaths ?? []).map { URL(fileURLWithPath: $0) as NSURL }
             if !urls.isEmpty {
                 pasteboard.clearContents()
-                pasteboard.writeObjects(urls)
-                let joined = urls
-                    .map { ($0 as URL).path }
-                    .joined(separator: "\n")
-                expectedDigestToIgnore = digest(data: Data(joined.utf8))
+                if pasteboard.writeObjects(urls) {
+                    let joined = urls
+                        .map { ($0 as URL).path }
+                        .joined(separator: "\n")
+                    expectedDigestToIgnore = digest(data: Data(joined.utf8))
+                }
             }
         }
 
@@ -146,7 +156,7 @@ final class ClipboardCaptureService {
         timer = newTimer
     }
 
-    private func pollPasteboard() {
+    func pollPasteboard() {
         guard isMonitoringEnabled else {
             return
         }
@@ -159,10 +169,11 @@ final class ClipboardCaptureService {
         lastChangeCount = newChangeCount
 
         let pasteboardTypes = pasteboard.types?.map(\.rawValue) ?? []
-        if digestToIgnoreOnce != nil,
+        let ignoredDigest = digestToIgnoreOnce
+        digestToIgnoreOnce = nil
+        if ignoredDigest != nil,
            SensitiveContentDetector.shouldBlock(pasteboardTypes: pasteboardTypes)
         {
-            digestToIgnoreOnce = nil
             return
         }
 
@@ -170,8 +181,7 @@ final class ClipboardCaptureService {
             return
         }
 
-        if digestToIgnoreOnce == capture.digest {
-            digestToIgnoreOnce = nil
+        if ignoredDigest == capture.digest {
             return
         }
 
@@ -185,8 +195,8 @@ final class ClipboardCaptureService {
         onCapture?(capture)
     }
 
-    private func readCapture() -> CapturedClipboardItem? {
-        let sourceBundleIdentifier = NSWorkspace.shared.frontmostApplication?.bundleIdentifier?.lowercased()
+    func readCapture() -> CapturedClipboardItem? {
+        let sourceBundleIdentifier = sourceBundleIdentifierProvider()?.lowercased()
         if let sourceBundleIdentifier,
            settings.excludedBundleIdentifiers.contains(sourceBundleIdentifier)
         {
@@ -228,7 +238,7 @@ final class ClipboardCaptureService {
     }
 
     private func readTextCapture(sourceBundleIdentifier: String?) -> CapturedClipboardItem? {
-        guard let rawText = pasteboard.string(forType: .string) else {
+        guard let rawText = pasteboard.string(forType: .string) ?? pasteboard.string(forType: .URL) else {
             return nil
         }
 
@@ -291,6 +301,7 @@ final class ClipboardCaptureService {
         }
 
         let normalizedPaths = urls
+            .filter(\.isFileURL)
             .map(\.path)
             .filter { !$0.isEmpty }
             .prefix(30)
@@ -439,9 +450,7 @@ final class ClipboardCaptureService {
         let imageOCRService = imageOCRService
         let generation = captureGeneration
         Task.detached(priority: .utility) { [weak self] in
-            let ocrText = imageOCRService
-                .recognizedText(fromPNGData: pngData)?
-                .previewSnippet(maxLength: 420)
+            let ocrText = imageOCRService.recognizedText(fromPNGData: pngData)
             let shouldBlock = ocrText.map { SensitiveContentDetector.shouldBlock(text: $0) } ?? false
 
             await self?.completeDeferredImageCapture(
@@ -463,11 +472,22 @@ final class ClipboardCaptureService {
 
         pendingImageOCRDigests.remove(capture.digest)
 
-        guard isMonitoringEnabled else {
+        guard isMonitoringEnabled, settings.captureImages else {
             return
         }
 
-        if shouldBlock {
+        if let sourceBundleIdentifier = capture.sourceBundleIdentifier {
+            let captureRule = settings.appCaptureRule(for: sourceBundleIdentifier)
+            if settings.excludedBundleIdentifiers.contains(sourceBundleIdentifier)
+                || captureRule?.ignoresCapture == true
+                || captureRule?.textOnly == true
+            {
+                onExcludedApplicationSkipped?()
+                return
+            }
+        }
+
+        if shouldBlock, settings.filterSensitiveContent {
             onSensitiveContentSkipped?()
             return
         }

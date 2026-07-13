@@ -111,6 +111,11 @@ struct KeychainKeyProvider {
         Self.cacheLock.lock()
         defer { Self.cacheLock.unlock() }
 
+        // Never retain a key in memory after a deletion attempt. A partial
+        // Keychain failure must not let a later save use a key that was already
+        // removed from the authoritative store.
+        Self.cachedKeyDataByService[service] = nil
+
         var firstFailure: OSStatus?
         for useDataProtectionKeychain in [true, false] {
             do {
@@ -124,7 +129,7 @@ struct KeychainKeyProvider {
             throw KeychainKeyProviderError.keychainFailure(firstFailure)
         }
 
-        clearCacheAndMarkMigration()
+        markMigrationCompleted()
     }
 
     private nonisolated func deleteKey(useDataProtectionKeychain: Bool) throws {
@@ -155,11 +160,6 @@ struct KeychainKeyProvider {
         }
 
         throw KeychainKeyProviderError.keychainFailure(directDeleteStatus)
-    }
-
-    private nonisolated func clearCacheAndMarkMigration() {
-        markMigrationCompleted()
-        Self.cachedKeyDataByService[service] = nil
     }
 
     private nonisolated var migrationCompleted: Bool {

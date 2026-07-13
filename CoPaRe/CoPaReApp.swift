@@ -10,11 +10,15 @@ struct CoPaReApp: App {
 
     init() {
         let settingsStore = SettingsStore()
+        let hotKeyService = GlobalHotKeyService()
+        let windowCoordinator = WindowCoordinator()
+        hotKeyService.configure(settings: settingsStore, windowCoordinator: windowCoordinator)
+
         _settings = StateObject(wrappedValue: settingsStore)
         _manager = StateObject(wrappedValue: ClipboardManager(settings: settingsStore))
         _updates = StateObject(wrappedValue: AppUpdateChecker())
-        _hotKeyService = StateObject(wrappedValue: GlobalHotKeyService())
-        _windowCoordinator = StateObject(wrappedValue: WindowCoordinator())
+        _hotKeyService = StateObject(wrappedValue: hotKeyService)
+        _windowCoordinator = StateObject(wrappedValue: windowCoordinator)
     }
 
     var body: some Scene {
@@ -23,7 +27,6 @@ struct CoPaReApp: App {
                 .environmentObject(settings)
                 .environmentObject(manager)
                 .environmentObject(updates)
-                .environmentObject(hotKeyService)
                 .environmentObject(windowCoordinator)
         }
         .defaultSize(width: 1_120, height: 740)
@@ -57,10 +60,14 @@ struct CoPaReApp: App {
                                 await manager.unlock()
                             }
                         }
+                        .disabled(manager.isVaultTransitioning)
                     } else {
                         Button("Lock CoPaRe") {
-                            manager.lock()
+                            Task {
+                                await manager.lock()
+                            }
                         }
+                        .disabled(manager.isVaultTransitioning)
                     }
                 }
             }

@@ -5,13 +5,14 @@
 //  Created by CoPaRe contributors.
 //
 
+import AppKit
 import Foundation
 import Testing
 @testable import CoPaRe
 
 struct CoPaReTests {
 
-    @Test func encryptedClipboardPayloadRoundTrips() throws {
+    @MainActor @Test func encryptedClipboardPayloadRoundTrips() throws {
         let payload = ClipboardItemPayload(
             plainText: "copare test payload",
             imagePNGData: nil,
@@ -22,6 +23,26 @@ struct CoPaReTests {
         let reopened = try sealed.open()
 
         #expect(reopened == payload)
+    }
+
+    @MainActor @Test func encryptedClipboardPayloadRejectsUnknownVersions() throws {
+        let payload = ClipboardItemPayload(
+            plainText: "versioned payload",
+            imagePNGData: nil,
+            filePaths: nil
+        )
+        let sealed = try EncryptedClipboardPayload.seal(payload)
+        let unsupported = EncryptedClipboardPayload(
+            version: sealed.version + 1,
+            keyService: sealed.keyService,
+            nonce: sealed.nonce,
+            ciphertext: sealed.ciphertext,
+            tag: sealed.tag
+        )
+
+        #expect(throws: (any Error).self) {
+            try unsupported.open()
+        }
     }
 
     @Test func blocksProtectedPasteboardSignalsAndSensitiveFiles() {
@@ -90,9 +111,9 @@ struct CoPaReTests {
     }
 
     @Test func clipboardTagsNormalizeAndDeduplicate() {
-        let tags = ClipboardHistoryItem.parseTags(" Work, #Swift; work\nPrivacy ")
+        let tags = ClipboardHistoryItem.parseTags(" Work, #Swift; work\nPrivacy C# ")
 
-        #expect(tags == ["work", "swift", "privacy"])
+        #expect(tags == ["work", "swift", "privacy", "c#"])
     }
 
     @MainActor
@@ -109,6 +130,94 @@ struct CoPaReTests {
         #expect(settings.excludedBundleIdentifiers.contains("com.1password.1password"))
         #expect(settings.excludedBundleIdentifiers.contains("com.bitwarden.desktop"))
         #expect(settings.excludedBundleIdentifiers.count == 2)
+        #expect(defaults.string(forKey: "excludedAppsRawText") == "com.1password.1password\ncom.bitwarden.desktop")
+    }
+
+    @MainActor
+    @Test func settingsClampInvalidStoredNumericValues() {
+        let suiteName = "io.copare.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.set(-10, forKey: "historyLimit")
+        defaults.set(Double.nan, forKey: "pollInterval")
+        defaults.set(5_000, forKey: "perAppHistoryLimit")
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let settings = SettingsStore(defaults: defaults)
+
+        #expect(settings.historyLimit == 20)
+        #expect(settings.pollInterval == 0.65)
+        #expect(settings.perAppHistoryLimit == 500)
+        #expect(defaults.integer(forKey: "historyLimit") == 20)
+        #expect(defaults.double(forKey: "pollInterval") == 0.65)
+        #expect(defaults.integer(forKey: "perAppHistoryLimit") == 500)
+    }
+
+    @MainActor
+    @Test func settingsRejectNonFiniteRuntimePollingIntervals() {
+        let suiteName = "io.copare.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.set(1.25, forKey: "pollInterval")
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let settings = SettingsStore(defaults: defaults)
+        var changeCount = 0
+        settings.onChange = {
+            changeCount += 1
+        }
+
+        settings.pollInterval = .nan
+
+        #expect(settings.pollInterval == 0.65)
+        #expect(defaults.double(forKey: "pollInterval") == 0.65)
+        #expect(changeCount == 1)
+    }
+
+    @MainActor
+    @Test func capturesWebURLsAsURLsAndFileURLsAsFiles() throws {
+        let suiteName = "io.copare.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
+
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("io.copare.tests.\(UUID().uuidString)"))
+        pasteboard.clearContents()
+        defer {
+            pasteboard.clearContents()
+        }
+
+        let settings = SettingsStore(defaults: defaults)
+        let service = ClipboardCaptureService(
+            pasteboard: pasteboard,
+            settings: settings,
+            sourceBundleIdentifierProvider: { "com.example.browser" }
+        )
+        let webURL = try #require(URL(string: "https://example.com/docs"))
+        #expect(pasteboard.writeObjects([webURL as NSURL]))
+        #expect(pasteboard.string(forType: .URL) == webURL.absoluteString)
+        let webCapture = service.readCapture()
+
+        #expect(webCapture?.type == .url)
+        #expect(try webCapture?.encryptedPayload?.open().plainText == webURL.absoluteString)
+
+        let fileURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("copare-example-\(UUID().uuidString).txt")
+        try "example".write(to: fileURL, atomically: true, encoding: .utf8)
+        defer {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+        pasteboard.clearContents()
+        #expect(pasteboard.writeObjects([fileURL as NSURL]))
+        let pastedFileURLs = pasteboard.readObjects(forClasses: [NSURL.self]) as? [URL]
+        #expect(pastedFileURLs?.first?.isFileURL == true)
+        let fileCapture = service.readCapture()
+
+        #expect(fileCapture?.type == .file)
+        #expect(try fileCapture?.encryptedPayload?.open().filePaths == [fileURL.path])
     }
 
     @MainActor

@@ -35,7 +35,9 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if manager.isLocked {
+            if manager.isVaultTransitioning {
+                vaultTransitionView
+            } else if manager.isLocked {
                 lockedView
             } else {
                 HStack(alignment: .top, spacing: 12) {
@@ -52,19 +54,22 @@ struct ContentView: View {
         .background(Color(nsColor: NSColor.windowBackgroundColor))
         .toolbar {
             ToolbarItemGroup {
-                if manager.hasSavedSnippetsAvailable && !manager.savedSnippetsLoaded {
+                if settings.persistHistory,
+                   manager.hasSavedSnippetsAvailable,
+                   !manager.savedSnippetsLoaded
+                {
                     Button("Load Saved Snippets") {
                         Task {
                             await manager.loadSavedSnippets()
                         }
                     }
-                    .disabled(manager.isLocked)
+                    .disabled(manager.isLocked || manager.isVaultTransitioning)
                 }
 
                 Button("New Snippet") {
                     isShowingSnippetComposer = true
                 }
-                .disabled(manager.isLocked)
+                .disabled(manager.isLocked || manager.isVaultTransitioning)
 
                 if settings.lockProtectionEnabled {
                     if manager.isLocked {
@@ -73,10 +78,14 @@ struct ContentView: View {
                                 await manager.unlock()
                             }
                         }
+                        .disabled(manager.isVaultTransitioning)
                     } else {
                         Button("Lock") {
-                            manager.lock()
+                            Task {
+                                await manager.lock()
+                            }
                         }
+                        .disabled(manager.isVaultTransitioning)
                     }
                 }
 
@@ -102,17 +111,17 @@ struct ContentView: View {
                         systemImage: manager.isPrivacyPaused ? "pause.circle.fill" : "pause.circle"
                     )
                 }
-                .disabled(manager.isLocked)
+                .disabled(manager.isLocked || manager.isVaultTransitioning)
 
                 Button(manager.isMonitoringEnabled ? "Pause" : "Resume") {
                     manager.toggleMonitoring()
                 }
-                .disabled(manager.isLocked)
+                .disabled(manager.isLocked || manager.isVaultTransitioning)
 
                 Button("Clear Unpinned", role: .destructive) {
                     manager.clearHistory(keepPinned: true)
                 }
-                .disabled(manager.isLocked)
+                .disabled(manager.isLocked || manager.isVaultTransitioning)
             }
 
             ToolbarItem {
@@ -122,7 +131,7 @@ struct ContentView: View {
                     Image(systemName: "magnifyingglass")
                 }
                 .help("Focus search")
-                .disabled(manager.isLocked)
+                .disabled(manager.isLocked || manager.isVaultTransitioning)
             }
         }
         .sheet(isPresented: $isShowingSnippetComposer) {
@@ -137,17 +146,30 @@ struct ContentView: View {
             qrCodeSheet
         }
         .sheet(isPresented: $isShowingSecurityOnboarding) {
-            SecurityOnboardingView()
-                .environmentObject(settings)
-        }
-        .onAppear {
-            if onboardingTourVersion < currentOnboardingTourVersion {
-                settings.onboardingCompleted = false
+            SecurityOnboardingView {
                 onboardingTourVersion = currentOnboardingTourVersion
             }
+                .environmentObject(settings)
+                .environmentObject(manager)
+        }
+        .alert(
+            "Vault Operation Incomplete",
+            isPresented: Binding(
+                get: { manager.lockFailureMessage != nil },
+                set: { if !$0 { manager.dismissLockFailure() } }
+            )
+        ) {
+            Button("OK") {
+                manager.dismissLockFailure()
+            }
+        } message: {
+            Text(manager.lockFailureMessage ?? "The secure vault operation did not complete.")
+        }
+        .onAppear {
+            let shouldShowUpdatedTour = onboardingTourVersion < currentOnboardingTourVersion
             selectedItemID = manager.filteredItems.first?.id
             clearSelectedPayload()
-            isShowingSecurityOnboarding = !settings.onboardingCompleted
+            isShowingSecurityOnboarding = !settings.onboardingCompleted || shouldShowUpdatedTour
         }
         .onChange(of: manager.filteredItems.map(\.id)) { _, ids in
             guard !ids.isEmpty else {
@@ -173,9 +195,18 @@ struct ContentView: View {
         .onChange(of: manager.isLocked) { _, isLocked in
             if isLocked {
                 clearSelectedPayload()
+                qrCodeText = nil
+                resetSnippetComposer()
                 return
             }
             selectedItemID = manager.filteredItems.first?.id ?? selectedItemID
+        }
+        .onChange(of: manager.isVaultTransitioning) { _, isTransitioning in
+            if isTransitioning {
+                clearSelectedPayload()
+                qrCodeText = nil
+                resetSnippetComposer()
+            }
         }
         .onChange(of: settings.onboardingCompleted) { _, completed in
             if completed {
@@ -193,9 +224,11 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in
             clearSelectedPayload()
+            qrCodeText = nil
         }
         .onDisappear {
             clearSelectedPayload()
+            qrCodeText = nil
         }
         .task(id: selectedPayloadRefreshID) {
             guard selectedPayload != nil else {
@@ -210,6 +243,18 @@ struct ContentView: View {
             }
 
             selectedPayload = nil
+        }
+        .task(id: qrCodeText) {
+            guard qrCodeText != nil else {
+                return
+            }
+
+            let delay = UInt64(selectedPayloadRetentionSeconds * 1_000_000_000)
+            try? await Task.sleep(nanoseconds: delay)
+            guard !Task.isCancelled else {
+                return
+            }
+            qrCodeText = nil
         }
     }
 
@@ -394,7 +439,25 @@ struct ContentView: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
+                    .disabled(manager.isVaultTransitioning)
                 }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var vaultTransitionView: some View {
+        panel {
+            VStack(spacing: 14) {
+                ProgressView()
+                    .controlSize(.large)
+
+                Text("Updating the secure vault…")
+                    .font(.title2.bold())
+
+                Text("Clipboard capture and history changes are paused until this finishes.")
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -452,13 +515,13 @@ struct ContentView: View {
                             }
                         }
 
-                        detailContent(for: item, payload: selectedPayload)
+                        detailContent(for: item, payload: displayedPayload(for: item))
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                             .padding(14)
                             .background(Color(nsColor: NSColor.textBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                         HStack(spacing: 10) {
-                            if item.encryptedPayload != nil && selectedPayload == nil {
+                            if item.encryptedPayload != nil && displayedPayload(for: item) == nil {
                                 Button {
                                     revealSelectedPayload()
                                 } label: {
@@ -474,15 +537,11 @@ struct ContentView: View {
                             }
                             .buttonStyle(.borderedProminent)
 
-                            if supportsPlainTextCopy(for: item) {
-                                Button {
-                                    manager.copyAsPlainText(item)
-                                } label: {
-                                    Label("Copy as Plain Text", systemImage: "text.cursor")
-                                }
-                                .buttonStyle(.bordered)
-
-                                Menu {
+                            Menu {
+                                if supportsPlainTextCopy(for: item) {
+                                    Button("Copy as Plain Text") {
+                                        manager.copyAsPlainText(item)
+                                    }
                                     Button("Copy Clean Text") {
                                         manager.copyCleanText(item)
                                     }
@@ -497,37 +556,36 @@ struct ContentView: View {
                                     Button("Show QR Code") {
                                         qrCodeText = manager.qrCodeText(for: item)
                                     }
-                                } label: {
-                                    Label("Actions", systemImage: "wand.and.sparkles")
+                                    Divider()
                                 }
-                                .buttonStyle(.bordered)
-                            }
 
-                            Button(item.isPinned ? "Unpin" : "Pin") {
-                                manager.togglePin(itemID: item.id)
+                                if item.type == .file {
+                                    Button("Reveal in Finder") {
+                                        manager.revealFiles(of: item)
+                                    }
+                                }
+
+                                if item.type == .url {
+                                    Button("Open URL") {
+                                        manager.openURL(item)
+                                    }
+                                }
+
+                                Button(item.isPinned ? "Unpin" : "Pin") {
+                                    manager.togglePin(itemID: item.id)
+                                }
+
+                                Divider()
+
+                                Button("Secure Delete", role: .destructive) {
+                                    manager.remove(itemID: item.id)
+                                }
+                            } label: {
+                                Label("More", systemImage: "ellipsis.circle")
                             }
                             .buttonStyle(.bordered)
-
-                            if item.type == .file {
-                                Button("Reveal in Finder") {
-                                    manager.revealFiles(of: item)
-                                }
-                                .buttonStyle(.bordered)
-                            }
-
-                            if item.type == .url {
-                                Button("Open URL") {
-                                    manager.openURL(item)
-                                }
-                                .buttonStyle(.bordered)
-                            }
 
                             Spacer()
-
-                            Button("Secure Delete", role: .destructive) {
-                                manager.remove(itemID: item.id)
-                            }
-                            .buttonStyle(.bordered)
                         }
                     }
                 }
@@ -612,6 +670,13 @@ struct ContentView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .textSelection(.enabled)
+            } else {
+                Label(
+                    "This content is too large to encode as a QR code.",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
             }
 
             Button("Close") {
@@ -748,6 +813,10 @@ struct ContentView: View {
         selectedPayload = item.decryptedPayload()
         selectedPayloadItemID = item.id
         selectedPayloadRefreshID = UUID()
+    }
+
+    private func displayedPayload(for item: ClipboardHistoryItem) -> ClipboardItemPayload? {
+        selectedPayloadItemID == item.id ? selectedPayload : nil
     }
 
     private func revealSelectedPayload() {

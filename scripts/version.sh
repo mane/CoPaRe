@@ -83,7 +83,7 @@ current_build_number() {
 }
 
 latest_semver_tag() {
-  git -C "${ROOT_DIR}" tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-version:refname | head -n 1
+  git -C "${ROOT_DIR}" tag --merged HEAD --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-version:refname | head -n 1
 }
 
 commit_count_since_latest_tag() {

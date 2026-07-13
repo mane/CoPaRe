@@ -19,7 +19,7 @@ NOTARY_PROFILE="${NOTARY_PROFILE:-}"
 VERSION="${VERSION:-}"
 INSTALL_PATH="${INSTALL_PATH:-/Applications/${APP_NAME}.app}"
 SKIP_NOTARIZE="${SKIP_NOTARIZE:-0}"
-SKIP_INSTALL="${SKIP_INSTALL:-0}"
+SKIP_INSTALL="${SKIP_INSTALL:-1}"
 CLEAN_BUILD="${CLEAN_BUILD:-1}"
 SPARKLE_KEY_ACCOUNT="${SPARKLE_KEY_ACCOUNT:-io.copare.sparkle}"
 SPARKLE_DOWNLOAD_URL_PREFIX="${SPARKLE_DOWNLOAD_URL_PREFIX:-}"
@@ -33,14 +33,15 @@ Options:
   --sign-identity VALUE   Developer ID Application certificate common name (required)
   --notary-profile VALUE  Keychain profile created with `xcrun notarytool store-credentials` (required unless --skip-notarize)
   --version VALUE         Release version used in DMG filename (default: MARKETING_VERSION from Xcode, normalized to x.y.z)
-  --install-path PATH     App install destination (default: /Applications/CoPaRe.app)
+  --install               Install the verified app after the release succeeds
+  --install-path PATH     App install destination (default: /Applications/CoPaRe.app; requires --install)
   --skip-notarize         Skip notarization/stapling steps
   --skip-install          Do not copy app to /Applications
   --no-clean              Do not run clean build
   -h, --help              Show help
 
 Environment variable equivalents:
-  SIGN_IDENTITY, NOTARY_PROFILE, VERSION, INSTALL_PATH, SKIP_NOTARIZE=1, SKIP_INSTALL=1, CLEAN_BUILD=0
+  SIGN_IDENTITY, NOTARY_PROFILE, VERSION, INSTALL_PATH, SKIP_NOTARIZE=1, SKIP_INSTALL=0, CLEAN_BUILD=0
   SPARKLE_KEY_ACCOUNT, SPARKLE_DOWNLOAD_URL_PREFIX
 USAGE
 }
@@ -62,6 +63,10 @@ while [[ $# -gt 0 ]]; do
     --install-path)
       INSTALL_PATH="${2:-}"
       shift 2
+      ;;
+    --install)
+      SKIP_INSTALL=0
+      shift
       ;;
     --skip-notarize)
       SKIP_NOTARIZE=1
@@ -95,6 +100,23 @@ fi
 if [[ "${SKIP_NOTARIZE}" != "1" && -z "${NOTARY_PROFILE}" ]]; then
   echo "Error: --notary-profile is required unless --skip-notarize is set." >&2
   exit 1
+fi
+
+if [[ "${SKIP_INSTALL}" != "1" ]]; then
+  case "${INSTALL_PATH}" in
+    /*.app) ;;
+    *)
+      echo "Error: --install-path must be an absolute .app bundle path." >&2
+      exit 1
+      ;;
+  esac
+
+  INSTALL_PARENT="$(dirname "${INSTALL_PATH}")"
+  if [[ ! -d "${INSTALL_PARENT}" ]]; then
+    echo "Error: install destination directory does not exist: ${INSTALL_PARENT}" >&2
+    exit 1
+  fi
+  INSTALL_PATH="$(cd "${INSTALL_PARENT}" && pwd -P)/$(basename "${INSTALL_PATH}")"
 fi
 
 normalize_version() {
@@ -151,6 +173,9 @@ DMGBUILD_VERSION="${DMGBUILD_VERSION:-1.6.7}"
 DMGBUILD_VENV_DIR="${BUILD_DIR}/release-tools-venv"
 DMGBUILD_BIN="${DMGBUILD_BIN:-}"
 TEMP_DMGBUILD_SETTINGS=""
+TEMP_DMGBUILD_DIR=""
+INSTALL_TEMP_DIR=""
+INSTALL_BACKUP_PATH=""
 SPARKLE_BIN_DIR="${DERIVED_DATA_DIR}/SourcePackages/artifacts/sparkle/Sparkle/bin"
 GENERATE_APPCAST_BIN="${SPARKLE_BIN_DIR}/generate_appcast"
 
@@ -202,7 +227,8 @@ resolve_dmgbuild_bin() {
 }
 
 create_styled_dmg() {
-  TEMP_DMGBUILD_SETTINGS="$(mktemp "${BUILD_DIR}/dmgbuild.XXXXXX.json")"
+  TEMP_DMGBUILD_DIR="$(mktemp -d "${BUILD_DIR}/dmgbuild.XXXXXX")"
+  TEMP_DMGBUILD_SETTINGS="${TEMP_DMGBUILD_DIR}/settings.json"
   cat > "${TEMP_DMGBUILD_SETTINGS}" <<EOF
 {
   "title": "${VOLUME_NAME}",
@@ -222,16 +248,31 @@ create_styled_dmg() {
 EOF
 
   "${DMGBUILD_BIN}" -s "${TEMP_DMGBUILD_SETTINGS}" "${VOLUME_NAME}" "${DMG_PATH}"
-  rm -f "${TEMP_DMGBUILD_SETTINGS}"
+  rm -rf "${TEMP_DMGBUILD_DIR}"
   TEMP_DMGBUILD_SETTINGS=""
+  TEMP_DMGBUILD_DIR=""
 }
 
 cleanup_mount() {
   if [[ -n "${MOUNT_POINT:-}" && -d "${MOUNT_POINT}" ]]; then
     hdiutil detach "${MOUNT_POINT}" >/dev/null 2>&1 || true
   fi
-  if [[ -n "${TEMP_DMGBUILD_SETTINGS}" && -f "${TEMP_DMGBUILD_SETTINGS}" ]]; then
-    rm -f "${TEMP_DMGBUILD_SETTINGS}"
+  if [[ -n "${TEMP_DMGBUILD_DIR}" && -d "${TEMP_DMGBUILD_DIR}" ]]; then
+    rm -rf "${TEMP_DMGBUILD_DIR}"
+  fi
+  if [[ -n "${INSTALL_BACKUP_PATH}" && ( -e "${INSTALL_BACKUP_PATH}" || -L "${INSTALL_BACKUP_PATH}" ) ]]; then
+    if [[ ! -e "${INSTALL_PATH}" && ! -L "${INSTALL_PATH}" ]]; then
+      if mv "${INSTALL_BACKUP_PATH}" "${INSTALL_PATH}"; then
+        INSTALL_BACKUP_PATH=""
+      fi
+    fi
+    if [[ -n "${INSTALL_BACKUP_PATH}" && ( -e "${INSTALL_BACKUP_PATH}" || -L "${INSTALL_BACKUP_PATH}" ) ]]; then
+      echo "Warning: previous app backup retained at ${INSTALL_BACKUP_PATH}" >&2
+      INSTALL_TEMP_DIR=""
+    fi
+  fi
+  if [[ -n "${INSTALL_TEMP_DIR}" && -d "${INSTALL_TEMP_DIR}" ]]; then
+    rm -rf "${INSTALL_TEMP_DIR}"
   fi
 }
 trap cleanup_mount EXIT
@@ -319,8 +360,8 @@ if [[ ! -x "${GENERATE_APPCAST_BIN}" ]]; then
 fi
 
 echo "[4/11] Create Sparkle update archive ${ZIP_NAME}"
-rm -f "${RELEASE_DIR}/${APP_NAME}"-v*.zip "${RELEASE_DIR}/${APP_NAME}"*.delta
-rm -f "${ZIP_PATH}"
+# Keep older archives available so Sparkle can generate delta updates.
+rm -f "${ZIP_PATH}" "${RELEASE_DIR}/${APP_NAME}"*.delta
 ditto -c -k --sequesterRsrc --keepParent "${STAGED_APP_PATH}" "${ZIP_PATH}"
 
 echo "[5/11] Refresh Sparkle appcast"
@@ -329,16 +370,7 @@ echo "[5/11] Refresh Sparkle appcast"
   --download-url-prefix "${SPARKLE_DOWNLOAD_URL_PREFIX}" \
   "${RELEASE_DIR}"
 
-if [[ "${SKIP_INSTALL}" != "1" ]]; then
-  echo "[6/11] Install app to ${INSTALL_PATH}"
-  rm -rf "${INSTALL_PATH}"
-  ditto "${STAGED_APP_PATH}" "${INSTALL_PATH}"
-  echo "Installed: ${INSTALL_PATH}"
-else
-  echo "[6/11] Install skipped"
-fi
-
-echo "[7/11] Create DMG ${DMG_NAME}"
+echo "[6/11] Create DMG ${DMG_NAME}"
 rm -f "${DMG_PATH}" "${SHA_PATH}"
 if resolve_dmgbuild_bin; then
   create_styled_dmg
@@ -347,29 +379,30 @@ else
   hdiutil create -fs HFS+ -volname "${VOLUME_NAME}" -srcfolder "${DMG_ROOT_DIR}" -ov -format UDZO "${DMG_PATH}"
 fi
 
-echo "[8/11] Sign DMG"
+echo "[7/11] Sign DMG"
 codesign --force --timestamp --sign "${SIGN_IDENTITY}" "${DMG_PATH}"
 codesign --verify --verbose=2 "${DMG_PATH}"
 
 if [[ "${SKIP_NOTARIZE}" != "1" ]]; then
-  echo "[9/11] Notarize DMG (profile: ${NOTARY_PROFILE})"
+  echo "[8/11] Notarize DMG (profile: ${NOTARY_PROFILE})"
   xcrun notarytool submit "${DMG_PATH}" --keychain-profile "${NOTARY_PROFILE}" --wait
 
-  echo "[10/11] Staple + validate"
+  echo "[9/11] Staple + validate"
   xcrun stapler staple "${DMG_PATH}"
   xcrun stapler validate "${DMG_PATH}"
 else
-  echo "[9/11] Notarization skipped"
-  echo "[10/11] Stapling skipped"
+  echo "[8/11] Notarization skipped"
+  echo "[9/11] Stapling skipped"
 fi
 
-echo "[11/11] Verify + SHA256"
+echo "[10/11] Verify + SHA256"
 run_spctl_check "DMG Gatekeeper assessment" spctl -a -t open --context context:primary-signature -vv "${DMG_PATH}"
 ATTACH_OUT="$(hdiutil attach "${DMG_PATH}" -readonly -nobrowse)"
 MOUNT_POINT="$(extract_mount_point "${ATTACH_OUT}")"
 if [[ -n "${MOUNT_POINT}" ]]; then
   run_spctl_check "mounted app Gatekeeper assessment" spctl -a -vvv -t exec "${MOUNT_POINT}/${APP_NAME}.app"
 fi
+
 (
   cd "$(dirname "${DMG_PATH}")"
   shasum -a 256 "$(basename "${DMG_PATH}")" > "${SHA_PATH}"
@@ -378,6 +411,43 @@ fi
 if [[ -n "${MOUNT_POINT}" ]]; then
   hdiutil detach "${MOUNT_POINT}" >/dev/null
   MOUNT_POINT=""
+fi
+
+if [[ "${SKIP_INSTALL}" != "1" ]]; then
+  echo "[11/11] Install verified app to ${INSTALL_PATH}"
+  INSTALL_TEMP_DIR="$(mktemp -d "${INSTALL_PARENT}/.${APP_NAME}-install.XXXXXX")"
+  INSTALL_TEMP_PATH="${INSTALL_TEMP_DIR}/$(basename "${INSTALL_PATH}")"
+  ditto "${STAGED_APP_PATH}" "${INSTALL_TEMP_PATH}"
+
+  if [[ -e "${INSTALL_PATH}" || -L "${INSTALL_PATH}" ]]; then
+    INSTALL_BACKUP_PATH="${INSTALL_TEMP_DIR}/previous-$(basename "${INSTALL_PATH}")"
+    mv "${INSTALL_PATH}" "${INSTALL_BACKUP_PATH}"
+  fi
+
+  if mv "${INSTALL_TEMP_PATH}" "${INSTALL_PATH}"; then
+    if [[ -n "${INSTALL_BACKUP_PATH}" ]]; then
+      rm -rf "${INSTALL_BACKUP_PATH}"
+      INSTALL_BACKUP_PATH=""
+    fi
+  else
+    replacement_status=$?
+    if [[ -n "${INSTALL_BACKUP_PATH}" && ( -e "${INSTALL_BACKUP_PATH}" || -L "${INSTALL_BACKUP_PATH}" ) ]]; then
+      if mv "${INSTALL_BACKUP_PATH}" "${INSTALL_PATH}"; then
+        INSTALL_BACKUP_PATH=""
+      else
+        echo "Error: replacement failed and the previous app could not be restored. Backup retained at ${INSTALL_BACKUP_PATH}" >&2
+        INSTALL_TEMP_DIR=""
+        exit 1
+      fi
+    fi
+    exit "${replacement_status}"
+  fi
+
+  rmdir "${INSTALL_TEMP_DIR}"
+  INSTALL_TEMP_DIR=""
+  echo "Installed: ${INSTALL_PATH}"
+else
+  echo "[11/11] Install skipped"
 fi
 
 echo ""

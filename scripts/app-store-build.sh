@@ -125,6 +125,11 @@ if [[ -z "${BUNDLE_ID}" ]]; then
   exit 1
 fi
 
+if [[ -z "${SIGNING_CERTIFICATE}" ]]; then
+  echo "Error: --signing-certificate must not be empty." >&2
+  exit 1
+fi
+
 normalize_version() {
   local raw="$1"
   if [[ "$raw" =~ ^[0-9]+\.[0-9]+$ ]]; then
@@ -219,20 +224,47 @@ require_no_sparkle() {
   fi
 }
 
+require_app_store_entitlements_plist() {
+  local entitlements_path="$1"
+  local description="$2"
+  local sandbox_value
+  local get_task_allow_value
+
+  sandbox_value="$(/usr/libexec/PlistBuddy -c "Print :com.apple.security.app-sandbox" "${entitlements_path}" 2>/dev/null || true)"
+  if [[ "${sandbox_value}" != "true" ]]; then
+    echo "Error: ${description} must set com.apple.security.app-sandbox to true." >&2
+    return 1
+  fi
+
+  get_task_allow_value="$(/usr/libexec/PlistBuddy -c "Print :com.apple.security.get-task-allow" "${entitlements_path}" 2>/dev/null || true)"
+  if [[ "${get_task_allow_value}" != "false" ]]; then
+    echo "Error: ${description} must set com.apple.security.get-task-allow to false." >&2
+    return 1
+  fi
+
+  if plutil -convert xml1 -o - "${entitlements_path}" 2>/dev/null | grep -Fq "temporary-exception.mach-lookup"; then
+    echo "Error: ${description} still contains Sparkle mach-lookup temporary exceptions." >&2
+    return 1
+  fi
+}
+
 require_app_store_entitlements() {
   local app_path="$1"
-  local entitlements
-  entitlements="$(codesign -d --entitlements :- "${app_path}" 2>/dev/null || true)"
+  local entitlements_path
+  entitlements_path="$(mktemp "${TMPDIR:-/tmp}/copare-app-store-entitlements.XXXXXX")"
 
-  if ! printf '%s\n' "${entitlements}" | grep -Fq "com.apple.security.app-sandbox"; then
-    echo "Error: App Store build is missing app sandbox entitlement." >&2
+  if ! codesign -d --entitlements :- "${app_path}" >"${entitlements_path}" 2>/dev/null; then
+    rm -f "${entitlements_path}"
+    echo "Error: unable to read entitlements from the App Store build." >&2
     exit 1
   fi
 
-  if printf '%s\n' "${entitlements}" | grep -Fq "temporary-exception.mach-lookup"; then
-    echo "Error: App Store build still contains Sparkle mach-lookup temporary exceptions." >&2
+  if ! require_app_store_entitlements_plist "${entitlements_path}" "App Store build"; then
+    rm -f "${entitlements_path}"
     exit 1
   fi
+
+  rm -f "${entitlements_path}"
 }
 
 require_privacy_manifest() {
@@ -279,6 +311,7 @@ rsync -a --delete \
 patch_project_for_app_store "${WORK_DIR}/${PROJECT_FILE}/project.pbxproj"
 strip_sparkle_info_keys "${WORK_DIR}/CoPaRe-Info.plist"
 plutil -lint "${WORK_DIR}/CoPaRe-Info.plist" "${WORK_DIR}/CoPaRe/CoPaRe.AppStore.entitlements" "${WORK_DIR}/CoPaRe/PrivacyInfo.xcprivacy" >/dev/null
+require_app_store_entitlements_plist "${WORK_DIR}/CoPaRe/CoPaRe.AppStore.entitlements" "App Store entitlements file"
 
 RELEASE_VERSION="$(normalize_version "$(current_version)")"
 ARCHIVE_PATH="${ARCHIVE_DIR}/${APP_NAME}-v${RELEASE_VERSION}-AppStore.xcarchive"
@@ -345,6 +378,7 @@ xcodebuild \
   DEVELOPMENT_TEAM="${TEAM_ID}" \
   PRODUCT_BUNDLE_IDENTIFIER="${BUNDLE_ID}" \
   CODE_SIGN_STYLE=Automatic \
+  CODE_SIGN_IDENTITY="${SIGNING_CERTIFICATE}" \
   CODE_SIGN_ENTITLEMENTS="CoPaRe/CoPaRe.AppStore.entitlements" \
   "OTHER_SWIFT_FLAGS=\$(inherited) -D APP_STORE" \
   archive

@@ -51,11 +51,13 @@ The script:
 - validates security entitlements
 - creates `release/CoPaRe-vX.Y.Z.zip` from the signed app bundle for Sparkle
 - refreshes `release/appcast.xml` using Sparkle's `generate_appcast` tool and your EdDSA update key
-- optionally installs the app to `/Applications`
 - creates a DMG in `dist/`
 - signs the DMG
 - optionally notarizes and staples it
 - generates a SHA256 file next to the DMG
+- optionally installs the verified app to `/Applications`
+
+For safety, the release script does not replace an installed application by default. Pass `--install` only when you also want the fully verified build copied to `/Applications/CoPaRe.app` after packaging and verification finish.
 
 Example:
 

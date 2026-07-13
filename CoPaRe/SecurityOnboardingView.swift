@@ -9,9 +9,11 @@ struct SecurityOnboardingView: View {
     }
 
     @EnvironmentObject private var settings: SettingsStore
+    @EnvironmentObject private var manager: ClipboardManager
     @Environment(\.dismiss) private var dismiss
 
     @State private var selectedPreset: SecurityPreset = .balanced
+    @State private var didSelectPreset = false
     @State private var stepIndex = 0
     @State private var demoFilter: ClipboardFilter = .all
     @State private var demoSearchText = ""
@@ -24,6 +26,12 @@ struct SecurityOnboardingView: View {
     @State private var didPauseMonitoring = false
     @State private var demoPinnedIDs = Set<UUID>()
     @State private var demoMonitoringEnabled = true
+
+    private let onComplete: () -> Void
+
+    init(onComplete: @escaping () -> Void = {}) {
+        self.onComplete = onComplete
+    }
 
     private let totalSteps = 4
     private let demoItems: [DemoItem] = [
@@ -122,6 +130,7 @@ struct SecurityOnboardingView: View {
                 if isFirstStep {
                     Button("Skip") {
                         settings.onboardingCompleted = true
+                        onComplete()
                         dismiss()
                     }
                 } else {
@@ -133,8 +142,13 @@ struct SecurityOnboardingView: View {
                 Spacer()
 
                 if isLastStep {
-                    Button("Finish with \(selectedPreset.label)") {
-                        settings.applySecurityPreset(selectedPreset, markOnboardingCompleted: true)
+                    Button(didSelectPreset || !settings.onboardingCompleted ? "Finish with \(selectedPreset.label)" : "Finish") {
+                        if !manager.isLocked, didSelectPreset || !settings.onboardingCompleted {
+                            settings.applySecurityPreset(selectedPreset, markOnboardingCompleted: true)
+                        } else {
+                            settings.onboardingCompleted = true
+                        }
+                        onComplete()
                         dismiss()
                     }
                     .buttonStyle(.borderedProminent)
@@ -158,6 +172,7 @@ struct SecurityOnboardingView: View {
         .frame(width: 700)
         .interactiveDismissDisabled()
         .onAppear {
+            selectedPreset = settings.securityPreset
             ensureDemoSelection()
         }
         .onChange(of: stepIndex) { _, _ in
@@ -238,7 +253,7 @@ struct SecurityOnboardingView: View {
                 featureRow(
                     symbol: "lock.doc",
                     title: "Encrypted persistence",
-                    description: "Saved snippets/history use encryption and keychain-protected keys."
+                    description: "Saved snippets use encryption and keychain-protected keys; captured history remains session-only."
                 )
                 featureRow(
                     symbol: "person.badge.key",
@@ -440,6 +455,7 @@ struct SecurityOnboardingView: View {
     private func presetCard(for preset: SecurityPreset) -> some View {
         Button {
             selectedPreset = preset
+            didSelectPreset = true
         } label: {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
@@ -470,5 +486,6 @@ struct SecurityOnboardingView: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(manager.isLocked)
     }
 }

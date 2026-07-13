@@ -125,18 +125,20 @@ final class SettingsStore: ObservableObject {
                 historyLimit = normalized
                 return
             }
-            persist(historyLimit, key: Keys.historyLimit, oldValue: oldValue)
+            persist(normalized, key: Keys.historyLimit, oldValue: oldValue)
         }
     }
 
     @Published var pollInterval: Double {
         didSet {
-            let normalized = pollInterval.clamped(to: 0.25...2.0)
-            if normalized != pollInterval {
+            let normalized = pollInterval.isFinite
+                ? pollInterval.clamped(to: 0.25...2.0)
+                : 0.65
+            if !pollInterval.isFinite || normalized != pollInterval {
                 pollInterval = normalized
                 return
             }
-            persist(pollInterval, key: Keys.pollInterval, oldValue: oldValue)
+            persist(normalized, key: Keys.pollInterval, oldValue: oldValue)
         }
     }
 
@@ -217,7 +219,7 @@ final class SettingsStore: ObservableObject {
                 perAppHistoryLimit = normalized
                 return
             }
-            persist(perAppHistoryLimit, key: Keys.perAppHistoryLimit, oldValue: oldValue)
+            persist(normalized, key: Keys.perAppHistoryLimit, oldValue: oldValue)
         }
     }
 
@@ -274,8 +276,13 @@ final class SettingsStore: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
-        historyLimit = defaults.object(forKey: Keys.historyLimit) as? Int ?? 250
-        pollInterval = defaults.object(forKey: Keys.pollInterval) as? Double ?? 0.65
+        let storedHistoryLimit = defaults.object(forKey: Keys.historyLimit) as? Int ?? 250
+        historyLimit = storedHistoryLimit.clamped(to: 20...1_000)
+
+        let storedPollInterval = defaults.object(forKey: Keys.pollInterval) as? Double ?? 0.65
+        pollInterval = storedPollInterval.isFinite
+            ? storedPollInterval.clamped(to: 0.25...2.0)
+            : 0.65
         persistHistory = defaults.object(forKey: Keys.persistHistory) as? Bool ?? true
         captureImages = defaults.object(forKey: Keys.captureImages) as? Bool ?? true
         captureFiles = defaults.object(forKey: Keys.captureFiles) as? Bool ?? true
@@ -286,7 +293,8 @@ final class SettingsStore: ObservableObject {
         appCaptureRulesRawText = Self.normalizeRulesText(defaults.string(forKey: Keys.appCaptureRulesRawText) ?? "")
         itemTTL = ClipboardItemTTL(rawValue: defaults.string(forKey: Keys.itemTTL) ?? "") ?? .never
         maskedContentTTL = ClipboardItemTTL(rawValue: defaults.string(forKey: Keys.maskedContentTTL) ?? "") ?? .fiveMinutes
-        perAppHistoryLimit = defaults.object(forKey: Keys.perAppHistoryLimit) as? Int ?? 80
+        let storedPerAppHistoryLimit = defaults.object(forKey: Keys.perAppHistoryLimit) as? Int ?? 80
+        perAppHistoryLimit = storedPerAppHistoryLimit.clamped(to: 5...500)
         oneTimeCopyEnabled = defaults.object(forKey: Keys.oneTimeCopyEnabled) as? Bool ?? false
         lockProtectionEnabled = defaults.object(forKey: Keys.lockProtectionEnabled) as? Bool ?? false
         imageOCRIndexingEnabled = defaults.object(forKey: Keys.imageOCRIndexingEnabled) as? Bool ?? false
@@ -303,6 +311,16 @@ final class SettingsStore: ObservableObject {
             }
         } else {
             launchAtLogin = false
+        }
+
+        if storedHistoryLimit != historyLimit {
+            defaults.set(historyLimit, forKey: Keys.historyLimit)
+        }
+        if !storedPollInterval.isFinite || storedPollInterval != pollInterval {
+            defaults.set(pollInterval, forKey: Keys.pollInterval)
+        }
+        if storedPerAppHistoryLimit != perAppHistoryLimit {
+            defaults.set(perAppHistoryLimit, forKey: Keys.perAppHistoryLimit)
         }
     }
 
