@@ -3,8 +3,8 @@
 ## Current Target
 
 - App: CoPaRe
-- Version: 1.4.3
-- Build: 17
+- Version: 1.4.4
+- Build: 18
 - Bundle ID: io.copare.app
 - Team ID: 6246LWZM9N
 - Category: Productivity
@@ -55,7 +55,12 @@ CoPaRe is a local macOS menu bar clipboard utility. Clipboard capture and histor
 
 ## What's New Draft
 
-Updated app icon.
+CoPaRe 1.4.4 improves reliability and privacy:
+
+- Safer app locking and encrypted snippet persistence.
+- Secure Delete now stays deleted, including snippets not yet loaded.
+- Stronger sensitive-content filtering for images and per-app capture rules.
+- More reliable shortcuts, onboarding, settings, and clipboard actions.
 
 ## App Privacy Draft
 
@@ -68,8 +73,8 @@ Use this draft only if the submitted product remains local-only and no analytics
 
 ## Manual App Store Connect Items
 
-- Create or verify the App Store Connect app record for bundle ID `io.copare.app`.
-- Latest local upload attempt authenticated to App Store Connect, but App Store Connect returned zero app records for bundle ID `io.copare.app`; create that record before retrying upload.
+- Verify the existing App Store Connect record for bundle ID `io.copare.app` and Apple ID `6771382344`.
+- Create the macOS version `1.4.4`, select build `18`, and copy the What's New text above.
 - Ensure the primary category in App Store Connect is Productivity, matching `LSApplicationCategoryType`.
 - Add screenshots for macOS.
 - Add description, keywords, support URL, marketing URL if desired, copyright, age rating, price, and availability.

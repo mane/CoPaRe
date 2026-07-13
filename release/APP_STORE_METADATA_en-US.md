@@ -23,7 +23,7 @@ No objectionable content, gambling, unrestricted web access, commerce, user-gene
 Pricing:
 Free
 
-## macOS App Version 1.4.3
+## macOS App Version 1.4.4
 
 Screenshots:
 - release/app-store/screenshots/en-US/mac/01-private-clipboard-history.png
@@ -68,10 +68,15 @@ Marketing URL:
 https://copare.boscolo.io/
 
 Version:
-1.4.3
+1.4.4
 
 What's New:
-Updated app icon.
+CoPaRe 1.4.4 improves reliability and privacy:
+
+- Safer app locking and encrypted snippet persistence.
+- Secure Delete now stays deleted, including snippets not yet loaded.
+- Stronger sensitive-content filtering for images and per-app capture rules.
+- More reliable shortcuts, onboarding, settings, and clipboard actions.
 
 Copyright:
 © 2026 Eddy Boscolo
@@ -152,10 +157,10 @@ Bundle ID:
 io.copare.app
 
 Version:
-1.4.3
+1.4.4
 
 Build:
-17
+18
 
 Local package:
 build/app-store/export/CoPaRe.pkg
