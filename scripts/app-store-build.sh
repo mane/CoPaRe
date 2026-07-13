@@ -33,7 +33,8 @@ Usage:
 Options:
   --team-id VALUE                 Apple Developer team ID (default: 6246LWZM9N)
   --bundle-id VALUE               App Store bundle identifier (default: io.copare.app)
-  --signing-certificate VALUE     Signing certificate selector (default: Apple Distribution)
+  --signing-certificate VALUE     Identity name used by the local signing preflight
+                                  (default: Apple Distribution)
   --authentication-key-path PATH   App Store Connect API key path for xcodebuild
   --authentication-key-id VALUE    App Store Connect API key ID
   --authentication-key-issuer-id VALUE
@@ -227,6 +228,7 @@ require_no_sparkle() {
 require_app_store_entitlements_plist() {
   local entitlements_path="$1"
   local description="$2"
+  local allow_development_get_task_allow="${3:-0}"
   local sandbox_value
   local get_task_allow_value
 
@@ -238,8 +240,10 @@ require_app_store_entitlements_plist() {
 
   get_task_allow_value="$(/usr/libexec/PlistBuddy -c "Print :com.apple.security.get-task-allow" "${entitlements_path}" 2>/dev/null || true)"
   if [[ "${get_task_allow_value}" != "false" ]]; then
-    echo "Error: ${description} must set com.apple.security.get-task-allow to false." >&2
-    return 1
+    if [[ "${allow_development_get_task_allow}" != "1" || ( -n "${get_task_allow_value}" && "${get_task_allow_value}" != "true" ) ]]; then
+      echo "Error: ${description} must set com.apple.security.get-task-allow to false." >&2
+      return 1
+    fi
   fi
 
   if plutil -convert xml1 -o - "${entitlements_path}" 2>/dev/null | grep -Fq "temporary-exception.mach-lookup"; then
@@ -250,6 +254,7 @@ require_app_store_entitlements_plist() {
 
 require_app_store_entitlements() {
   local app_path="$1"
+  local allow_development_signature="${2:-0}"
   local entitlements_path
   entitlements_path="$(mktemp "${TMPDIR:-/tmp}/copare-app-store-entitlements.XXXXXX")"
 
@@ -259,9 +264,24 @@ require_app_store_entitlements() {
     exit 1
   fi
 
-  if ! require_app_store_entitlements_plist "${entitlements_path}" "App Store build"; then
+  if ! require_app_store_entitlements_plist "${entitlements_path}" "App Store build" "${allow_development_signature}"; then
     rm -f "${entitlements_path}"
     exit 1
+  fi
+
+  if [[ "${allow_development_signature}" == "1" ]]; then
+    local get_task_allow_value
+    get_task_allow_value="$(/usr/libexec/PlistBuddy -c "Print :com.apple.security.get-task-allow" "${entitlements_path}" 2>/dev/null || true)"
+    if [[ "${get_task_allow_value}" != "false" ]]; then
+      local signing_authority
+      signing_authority="$(codesign -dvv "${app_path}" 2>&1 | awk -F= '/^Authority=/ && !found {print $2; found=1}')"
+      if [[ "${signing_authority}" != Apple\ Development:* ]]; then
+        rm -f "${entitlements_path}"
+        echo "Error: get-task-allow is only permitted on the automatically signed development archive." >&2
+        exit 1
+      fi
+      echo "Note: archive uses an Apple Development signature; App Store export will replace it."
+    fi
   fi
 
   rm -f "${entitlements_path}"
@@ -378,7 +398,6 @@ xcodebuild \
   DEVELOPMENT_TEAM="${TEAM_ID}" \
   PRODUCT_BUNDLE_IDENTIFIER="${BUNDLE_ID}" \
   CODE_SIGN_STYLE=Automatic \
-  CODE_SIGN_IDENTITY="${SIGNING_CERTIFICATE}" \
   CODE_SIGN_ENTITLEMENTS="CoPaRe/CoPaRe.AppStore.entitlements" \
   "OTHER_SWIFT_FLAGS=\$(inherited) -D APP_STORE" \
   archive
@@ -391,7 +410,7 @@ fi
 
 echo "[2/3] Validate App Store archive shape"
 require_no_sparkle "${APP_PATH}"
-require_app_store_entitlements "${APP_PATH}"
+require_app_store_entitlements "${APP_PATH}" 1
 require_privacy_manifest "${APP_PATH}"
 
 if [[ "${SKIP_EXPORT}" == "1" ]]; then
