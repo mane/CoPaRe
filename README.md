@@ -73,13 +73,13 @@ Requirements:
 Build:
 
 ```bash
-xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS' build
+xcodebuild -project CoPaRe.xcodeproj -scheme 'CoPaRe GitHub Release' -destination 'platform=macOS' build
 ```
 
 Test:
 
 ```bash
-xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS' test
+xcodebuild -project CoPaRe.xcodeproj -scheme 'CoPaRe GitHub Release' -destination 'platform=macOS' test
 ```
 
 ## Core features

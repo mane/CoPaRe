@@ -57,7 +57,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A11A00012F60000000D25DBC /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -79,6 +78,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A11A00012F60000000D25DBC /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -126,15 +126,14 @@
 			);
 			name = CoPaRe;
 			packageProductDependencies = (
-				A11A00032F60000000D25DBC /* Sparkle */,
 			);
 			productName = CoPaRe;
 			productReference = 3A1490FF2F5197F400D25DBC /* CoPaRe.app */;
 			productType = "com.apple.product-type.application";
 		};
-		A11A00242F70000000D25DBC /* CoPaRe App Store */ = {
+		A11A00242F70000000D25DBC /* CoPaRe GitHub */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A11A00282F70000000D25DBC /* Build configuration list for PBXNativeTarget "CoPaRe App Store" */;
+			buildConfigurationList = A11A00282F70000000D25DBC /* Build configuration list for PBXNativeTarget "CoPaRe GitHub" */;
 			buildPhases = (
 				A11A00222F70000000D25DBC /* Sources */,
 				A11A00212F70000000D25DBC /* Frameworks */,
@@ -147,8 +146,9 @@
 			fileSystemSynchronizedGroups = (
 				3A1491012F5197F400D25DBC /* CoPaRe */,
 			);
-			name = "CoPaRe App Store";
+			name = "CoPaRe GitHub";
 			packageProductDependencies = (
+				A11A00032F60000000D25DBC /* Sparkle */,
 			);
 			productName = CoPaRe;
 			productReference = A11A00202F70000000D25DBC /* CoPaRe.app */;
@@ -244,7 +244,7 @@
 			projectRoot = "";
 			targets = (
 				3A1490FE2F5197F400D25DBC /* CoPaRe */,
-				A11A00242F70000000D25DBC /* CoPaRe App Store */,
+				A11A00242F70000000D25DBC /* CoPaRe GitHub */,
 				3A14910D2F5197F700D25DBC /* CoPaReTests */,
 				3A1491172F5197F700D25DBC /* CoPaReUITests */,
 			);
@@ -529,6 +529,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) APP_STORE";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -563,6 +564,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) APP_STORE";
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -726,19 +728,19 @@
 			};
 			name = Distribution;
 		};
-		A11A00252F70000000D25DBC /* Distribution */ = {
+		A11A00262F70000000D25DBC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CODE_SIGN_ENTITLEMENTS = CoPaRe/CoPaRe.Distribution.entitlements;
+				CODE_SIGN_ENTITLEMENTS = CoPaRe/CoPaRe.Debug.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 20;
 				DEVELOPMENT_TEAM = 6246LWZM9N;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_LIBRARY_VALIDATION = YES;
+				ENABLE_LIBRARY_VALIDATION = NO;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -752,7 +754,74 @@
 				PRODUCT_NAME = CoPaRe;
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) APP_STORE";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		A11A00272F70000000D25DBC /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = CoPaRe/CoPaRe.Release.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 20;
+				DEVELOPMENT_TEAM = 6246LWZM9N;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_LIBRARY_VALIDATION = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CoPaRe-Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.4.4;
+				PRODUCT_BUNDLE_IDENTIFIER = io.copare.app;
+				PRODUCT_NAME = CoPaRe;
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		A11A00252F70000000D25DBC /* Distribution */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_ENTITLEMENTS = CoPaRe/CoPaRe.Release.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 20;
+				DEVELOPMENT_TEAM = 6246LWZM9N;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_LIBRARY_VALIDATION = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = CoPaRe-Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.4.4;
+				PRODUCT_BUNDLE_IDENTIFIER = io.copare.app;
+				PRODUCT_NAME = CoPaRe;
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -804,13 +873,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		A11A00282F70000000D25DBC /* Build configuration list for PBXNativeTarget "CoPaRe App Store" */ = {
+		A11A00282F70000000D25DBC /* Build configuration list for PBXNativeTarget "CoPaRe GitHub" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
+				A11A00262F70000000D25DBC /* Debug */,
+				A11A00272F70000000D25DBC /* Release */,
 				A11A00252F70000000D25DBC /* Distribution */,
 			);
 			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Distribution;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 

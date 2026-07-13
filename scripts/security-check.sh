@@ -21,7 +21,7 @@ if [[ -z "${APP_PATH}" ]]; then
   BUILD_LOG="$(mktemp /tmp/copare-security-check-build.log.XXXXXX)"
   if ! xcodebuild \
     -project "${PROJECT_ROOT}/CoPaRe.xcodeproj" \
-    -scheme "CoPaRe" \
+    -scheme "CoPaRe GitHub Release" \
     -configuration Release \
     -destination 'platform=macOS' \
     -derivedDataPath "${DD}" \

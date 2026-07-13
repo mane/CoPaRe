@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_NAME="CoPaRe"
-SCHEME="CoPaRe"
+SCHEME="CoPaRe GitHub Release"
 PROJECT_FILE="CoPaRe.xcodeproj"
 CONFIGURATION="Distribution"
 VOLUME_NAME="${APP_NAME} Installer"
