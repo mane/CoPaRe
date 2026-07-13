@@ -62,10 +62,10 @@ Keywords:
 clipboard,manager,history,copy,paste,snippets,privacy,security,productivity
 
 Support URL:
-https://copare.boscolo.io/support/
+https://copare.it/support/
 
 Marketing URL:
-https://copare.boscolo.io/
+https://copare.it/
 
 Version:
 1.4.4
@@ -114,10 +114,10 @@ TODO: enter your App Review email address
 ## App Privacy
 
 Privacy Policy URL:
-https://copare.boscolo.io/privacy/
+https://copare.it/privacy/
 
 User Privacy Choices URL:
-https://copare.boscolo.io/privacy/#privacy-choices
+https://copare.it/privacy/#privacy-choices
 
 Tracking:
 No
