@@ -3,68 +3,43 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>CoPaRe Support</title>
-    <meta name="description" content="Support resources for CoPaRe, a privacy-first clipboard manager for macOS.">
-    <link rel="canonical" href="https://copare.boscolo.io/support/">
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="../styles.css?v=20260530-mobile">
+    <meta name="theme-color" content="#f7f9fc">
+    <title>CoPaRe — Support</title>
+    <meta name="description" content="Get help with CoPaRe for Mac: Quick Copy, saved snippets, encrypted backups, image text recognition, privacy controls, and updates.">
+    <link rel="canonical" href="https://copare.it/support/">
+    <link rel="icon" href="/assets/app-icon.png" type="image/png">
+    <link rel="stylesheet" href="/styles.css?v=20260923-150">
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
-      <a class="brand" href="/">CoPaRe</a>
-      <nav class="nav" aria-label="Primary navigation">
-        <a href="https://apps.apple.com/it/app/copare/id6771382344?l=en-GB&amp;mt=12">App Store</a>
-        <a href="/privacy/">Privacy</a>
-        <a href="/support/">Support</a>
-        <a href="https://github.com/mane/CoPaRe">GitHub</a>
-      </nav>
+      <a class="brand" href="/" aria-label="CoPaRe home"><img src="/assets/app-icon.png" width="36" height="36" alt=""><span>CoPaRe</span></a>
+      <nav class="nav" aria-label="Primary navigation"><a href="/#features">Features</a><a href="/privacy/">Privacy</a><a href="/support/" aria-current="page">Support</a><a class="nav-download" href="/#download">Get CoPaRe <span aria-hidden="true">↗</span></a></nav>
     </header>
-
-    <main class="page-main">
-      <p class="eyebrow">Help and contact</p>
-      <h1>CoPaRe Support</h1>
-      <p class="page-lead">Use these resources for installation help, update checks, issue reports, and privacy questions.</p>
-
+    <main class="page-main" id="main">
+      <p class="eyebrow">Help, when you need it</p>
+      <h1>A little support.</h1>
+      <p class="page-lead">Find your way around CoPaRe, understand its privacy controls, or get in touch about something that needs a closer look.</p>
+      <div class="support-options">
+        <article class="support-option"><h2>Install or update</h2><p>CoPaRe requires macOS 26.2 or later on an Apple silicon or Intel Mac. App Store updates arrive through Apple; the direct build has Check for Updates in its menu.</p><p><a href="/#download">Choose your download →</a></p></article>
+        <article class="support-option"><h2>Report an issue</h2><p>Include your macOS version, CoPaRe version, download channel, and steps to reproduce the problem. Use example content instead of private clipboard data.</p><p><a href="https://github.com/mane/CoPaRe/issues">Open GitHub Issues ↗</a></p></article>
+      </div>
       <section class="content-section">
-        <div class="support-options">
-          <article class="support-option">
-            <h2>Report an issue</h2>
-            <p>Open a GitHub issue with your macOS version, CoPaRe version, and steps to reproduce the problem.</p>
-            <p><a href="https://github.com/mane/CoPaRe/issues">Open GitHub Issues</a></p>
-          </article>
-          <article class="support-option">
-            <h2>Install CoPaRe</h2>
-            <p>CoPaRe is available on the Mac App Store. Direct-download releases are also signed, notarized, and distributed through GitHub Releases.</p>
-            <p><a href="https://apps.apple.com/it/app/copare/id6771382344?l=en-GB&amp;mt=12">Mac App Store</a> · <a href="https://github.com/mane/CoPaRe/releases/latest">Direct download</a></p>
-          </article>
+        <h2>Using CoPaRe</h2>
+        <div class="faq-list">
+          <details open><summary>How do I open Quick Copy?<span aria-hidden="true">+</span></summary><p>Press ⌥⌘V or choose Quick Copy from CoPaRe’s menu bar menu. Type to search, move with the arrow keys, and press Return to copy the selected item. Paste in your previous app with ⌘V. Escape closes the panel. If CoPaRe is locked, open its main window and unlock first.</p></details>
+          <details><summary>Why isn’t a copy appearing in history?<span aria-hidden="true">+</span></summary><p>Check that monitoring is on and CoPaRe is unlocked. In Settings, review excluded apps, per-app rules, sensitive-content filtering, and the image or file capture options. Apps may mark their clipboard content as confidential or temporary, which CoPaRe respects. Captures made while monitoring is paused are not added later.</p></details>
+          <details><summary>What is the difference between a pinned item and a snippet?<span aria-hidden="true">+</span></summary><p>Pinning keeps a captured item readily available during the current session; it is still cleared when you quit. A snippet is reusable text you explicitly save. Create one from scratch or save a captured text or URL as a snippet, then edit its title, content, and tags. Enable persistence to keep snippets in the encrypted local vault.</p></details>
+          <details><summary>Where are my saved snippets after restarting?<span aria-hidden="true">+</span></summary><p>The regular saved-snippets vault is loaded on request. Use Load Saved Snippets to bring them into the current session; unlock first if protection is enabled. Pending snippet changes saved during locking are recovered after authenticated unlock. Clipboard captures from the previous session are not restored.</p></details>
+          <details><summary>How do encrypted backups work?<span aria-hidden="true">+</span></summary><p>Backups include snippets loaded in the current session. Load any saved snippets you want to include, then create an encrypted backup in Settings using a password of at least 12 characters. Keep the password somewhere safe: CoPaRe does not store it and cannot reset it. To move snippets to another Mac, transfer the file and restore it with the same password. Plain JSON export is a separate option and contains readable text.</p></details>
+          <details><summary>How do I copy text from an image?<span aria-hidden="true">+</span></summary><p>Select an image, reveal its content, and choose Copy Text. Recognition runs locally using Apple’s Vision framework. The result goes to the system clipboard; it is not automatically added to searchable history or saved as a snippet. Changing the selection, hiding the image, leaving the app, or locking cancels a pending result.</p></details>
+          <details><summary>What does automatic locking do?<span aria-hidden="true">+</span></summary><p>Enable unlock protection, then choose your automatic-lock settings. CoPaRe can lock on leaving the app, on Mac or display sleep and user switching, or after a period without interaction in CoPaRe. Capture pauses while locked. The inactivity timer uses input within CoPaRe and does not monitor typing in other apps.</p></details>
+          <details><summary>Does deleting history also clear the system clipboard?<span aria-hidden="true">+</span></summary><p>No. History and the macOS system clipboard are separate. Use timed clipboard clearing to expire a copy made by CoPaRe. It clears that copy only if the system clipboard has not changed since. A newer copy from any app is preserved.</p></details>
+          <details><summary>Why does the App Store show a different version?<span aria-hidden="true">+</span></summary><p>Direct releases and App Store updates have separate publication steps. A new direct release may be available while Apple reviews the App Store update. Use your installed channel’s normal update mechanism; both builds support the same core clipboard and privacy features.</p></details>
         </div>
       </section>
-
-      <section class="content-section">
-        <h2>Common Checks</h2>
-        <ul>
-          <li>Open CoPaRe from the menu bar if the main window is hidden.</li>
-          <li>Use CoPaRe > Check for Updates in the direct-download build.</li>
-          <li>Review Settings if capture, images, files, or shortcut behavior is not what you expect.</li>
-          <li>Use Secure Wipe if you want to clear local history and snippet vault keys.</li>
-        </ul>
-      </section>
-
-      <section class="content-section">
-        <h2>Privacy and Security Reports</h2>
-        <p>For privacy behavior, see the Privacy Policy. For security-sensitive reports, avoid posting secrets or clipboard contents publicly; use the guidance in the repository security policy.</p>
-        <p><a href="/privacy/">Privacy Policy</a> · <a href="https://github.com/mane/CoPaRe/blob/main/SECURITY.md">Security Policy</a></p>
-      </section>
+      <section class="content-section"><h2>Privacy and security reports</h2><p>The privacy policy explains what stays in memory, what can be saved, and what happens when you choose actions such as web search. For a security-sensitive report, follow the repository’s security policy and avoid posting secrets publicly.</p><p><a href="/privacy/">Privacy policy</a> · <a href="https://github.com/mane/CoPaRe/blob/main/SECURITY.md">Security policy</a></p></section>
     </main>
-
-    <footer class="site-footer">
-      <span>© 2026 Eddy Boscolo</span>
-      <div class="footer-links">
-        <a href="/">Home</a>
-        <a href="/privacy/">Privacy</a>
-        <a href="https://apps.apple.com/it/app/copare/id6771382344?l=en-GB&amp;mt=12">App Store</a>
-        <a href="https://github.com/mane/CoPaRe">Source</a>
-      </div>
-    </footer>
+    <footer class="site-footer section-shell"><div><a class="brand" href="/"><img src="/assets/app-icon.png" width="28" height="28" alt=""><span>CoPaRe</span></a><span class="copyright">Made by Eddy Boscolo · © 2026</span></div><nav class="footer-links" aria-label="Footer navigation"><a href="/">Home</a><a href="/privacy/">Privacy policy</a><a href="https://github.com/mane/CoPaRe">GitHub <span aria-hidden="true">↗</span></a></nav></footer>
   </body>
 </html>

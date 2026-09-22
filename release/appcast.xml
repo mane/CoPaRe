@@ -1,64 +1,18 @@
-<?xml version="1.0" standalone="yes"?>
-<!-- sparkle-sign-warning:
+<?xml version="1.0" standalone="yes"?><!-- sparkle-sign-warning:
 IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
--->
-<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+--><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
     <channel>
         <title>CoPaRe</title>
         <item>
-            <title>1.4.2</title>
-            <pubDate>Sat, 30 May 2026 08:48:23 +0200</pubDate>
-            <sparkle:version>16</sparkle:version>
-            <sparkle:shortVersionString>1.4.2</sparkle:shortVersionString>
+            <title>1.5.0</title>
+            <pubDate>Wed, 23 Sep 2026 00:32:06 +0200</pubDate>
+            <sparkle:version>21</sparkle:version>
+            <sparkle:shortVersionString>1.5.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/mane/CoPaRe/releases/latest/download/CoPaRe-v1.4.2.zip" length="5563094" type="application/octet-stream" sparkle:edSignature="451DpLcc6wLj35bTD0PCJ8wuQGtz+3JWq4bfzZ1ZXTbPb3QOcD2hWKgVHz3aL5n+gNJQlaPtzUy/J1ROoNrhDg=="/>
-        </item>
-        <item>
-            <title>1.4.1</title>
-            <pubDate>Wed, 20 May 2026 12:15:05 +0200</pubDate>
-            <sparkle:version>15</sparkle:version>
-            <sparkle:shortVersionString>1.4.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/mane/CoPaRe/releases/latest/download/CoPaRe-v1.4.1.zip" length="6047490" type="application/octet-stream" sparkle:edSignature="jeRNf9kUBCe7axLABTdOoxJr3LHCmfq/4iR9lfVjb9lJM8XBM9a3IuBXlXwq98+2Iv0o5UwQPuieyc0zUPvnAQ=="/>
-        </item>
-        <item>
-            <title>1.4.0</title>
-            <pubDate>Tue, 28 Apr 2026 21:23:48 +0200</pubDate>
-            <sparkle:version>14</sparkle:version>
-            <sparkle:shortVersionString>1.4.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/mane/CoPaRe/releases/latest/download/CoPaRe-v1.4.0.zip" length="6036459" type="application/octet-stream" sparkle:edSignature="t27oFvYGojh4AA1M2CEbT8qK80awgRhXRt+ATdQ3sSrYMAkBL4g/CwJmboHsliydz2YV8a/RgMMYwp0WXXNWAw=="/>
-        </item>
-        <item>
-            <title>1.3.1</title>
-            <pubDate>Thu, 05 Mar 2026 20:45:13 +0100</pubDate>
-            <sparkle:version>6</sparkle:version>
-            <sparkle:shortVersionString>1.3.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/mane/CoPaRe/releases/latest/download/CoPaRe-v1.3.1.zip" length="5437920" type="application/octet-stream" sparkle:edSignature="pmS9wrRYuvhcLK/z0LEXu7brcd7/DdpTKLeq53DQQHEqk+ikqkWS1DE5se+ARd9KWyNLTnd/ucEgzBMJ2ZCWDw=="/>
-        </item>
-        <item>
-            <title>1.3.0</title>
-            <pubDate>Wed, 04 Mar 2026 21:55:10 +0100</pubDate>
-            <sparkle:version>5</sparkle:version>
-            <sparkle:shortVersionString>1.3.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/mane/CoPaRe/releases/latest/download/CoPaRe-v1.3.0.zip" length="5341567" type="application/octet-stream" sparkle:edSignature="/2St2JQMkump6+Xnk7cbf6HSCJqWV1ZnCuAiuCuh+INs21MfGGK+Ua9+pJ7Kyr7ek/h6TTQuVfLXwYyF+5n5CQ=="/>
-        </item>
-        <item>
-            <title>1.2.1</title>
-            <pubDate>Wed, 04 Mar 2026 19:05:34 +0100</pubDate>
-            <sparkle:version>4</sparkle:version>
-            <sparkle:shortVersionString>1.2.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/mane/CoPaRe/releases/latest/download/CoPaRe-v1.2.1.zip" length="5281482" type="application/octet-stream" sparkle:edSignature="ZXJ4ZvQ+zgNdx1vgCKJUOeCaIsZQm7oCm9Lxnyn6F5c5j7IKQPY+ZPrXSOdNWmNkLMp/TcV/z0IWBZF2M5MuAw=="/>
+            <enclosure url="https://github.com/mane/CoPaRe/releases/download/v1.5.0/CoPaRe-v1.5.0.zip" length="6107276" type="application/octet-stream" sparkle:edSignature="NABtd73jG7V/FcpriuOl6uK5chYSgXBKSRaeueznqGSyPT71NFVNP4D2TFrvnwHCMdJAK4blFIFKYDrYStAmCQ=="></enclosure>
         </item>
     </channel>
-</rss>
-<!-- sparkle-signatures:
-edSignature: kDM+gSNmp1OS7QpGaXboyQdFiCoxpYN73szdOvDTEAWENpUpi/peItRgA1V4Tj/V4TDO/9oeidk3/JfqMiSkDQ==
-length: 4234
+</rss><!-- sparkle-signatures:
+edSignature: 3vGVzfPB0sZi0PYP5f7d6tT4fiGGkg2Ubr9Z0d6qoLkQUMJ69WGTwowRWQvko4cN9/GJkoK9eO7LBiYgzhTIAg==
+length: 1033
 -->

@@ -5,23 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>CoPaRe Privacy Policy</title>
     <meta name="description" content="Privacy policy for CoPaRe, a local privacy-first clipboard manager for macOS.">
-    <link rel="canonical" href="https://copare.boscolo.io/privacy/">
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="../styles.css?v=20260530-mobile">
+    <link rel="canonical" href="https://copare.it/privacy/">
+    <link rel="icon" href="/assets/app-icon.png" type="image/png">
+    <link rel="stylesheet" href="../styles.css?v=20260923-150">
   </head>
   <body>
+    <a class="skip-link" href="#main">Skip to content</a>
     <header class="site-header">
-      <a class="brand" href="/">CoPaRe</a>
-      <nav class="nav" aria-label="Primary navigation">
-        <a href="https://apps.apple.com/it/app/copare/id6771382344?l=en-GB&amp;mt=12">App Store</a>
-        <a href="/privacy/">Privacy</a>
-        <a href="/support/">Support</a>
-        <a href="https://github.com/mane/CoPaRe">GitHub</a>
-      </nav>
+      <a class="brand" href="/" aria-label="CoPaRe home"><img src="/assets/app-icon.png" width="36" height="36" alt=""><span>CoPaRe</span></a>
+      <nav class="nav" aria-label="Primary navigation"><a href="/#features">Features</a><a href="/privacy/" aria-current="page">Privacy</a><a href="/support/">Support</a><a class="nav-download" href="/#download">Get CoPaRe <span aria-hidden="true">↗</span></a></nav>
     </header>
 
-    <main class="page-main">
-      <p class="eyebrow">Effective May 20, 2026</p>
+    <main class="page-main" id="main">
+      <p class="eyebrow">Updated September 23, 2026</p>
       <h1>Privacy Policy</h1>
       <p class="page-lead">CoPaRe is designed as a local macOS clipboard utility. It does not collect personal data, require an account, use analytics, or sync clipboard contents to a cloud service.</p>
 
@@ -31,17 +27,44 @@
 
       <section class="content-section">
         <h2>Data Collection</h2>
-        <p>CoPaRe does not collect, sell, rent, share, or transmit personal data. The app does not include advertising SDKs, analytics SDKs, third-party telemetry, account creation, subscriptions, or cloud sync.</p>
+        <p>CoPaRe does not collect, sell, or rent personal data, or automatically upload your clipboard contents. The app does not include advertising SDKs, analytics SDKs, third-party telemetry, account creation, subscriptions, or cloud sync.</p>
       </section>
 
       <section class="content-section">
         <h2>Clipboard Contents</h2>
         <p>Clipboard processing happens locally on your Mac. Captured clipboard history is session-only and is cleared when CoPaRe quits. CoPaRe does not send clipboard text, URLs, file paths, images, or snippets to CoPaRe servers.</p>
+        <p>Quick Copy searches the titles, previews, tags, and source-app information already available in the app. Opening the panel does not decrypt item contents. Choosing a copy action writes the selected content to the macOS clipboard.</p>
       </section>
 
       <section class="content-section">
         <h2>Saved Snippets</h2>
-        <p>If you explicitly save snippets and enable persistence, CoPaRe stores those user-created snippets locally in an encrypted vault on your Mac. Encryption keys are protected with Apple platform security APIs, including Keychain where applicable.</p>
+        <p>If you explicitly save snippets and enable persistence, CoPaRe stores those user-created snippets locally in an encrypted vault on your Mac. You can create, edit, duplicate, or save a captured text or URL entry as a snippet. Creating a snippet from history requires an explicit Save action; the original captured entry remains session-only. Encryption keys are protected with Apple platform security APIs, including Keychain where applicable.</p>
+        <p>When persistence and unlock protection are enabled, pending snippet changes and deletion markers are also saved in an encrypted local recovery file. This prevents automatic locking followed by quitting from discarding those changes. They are recovered after authenticated unlock and merged into the saved-snippets vault; the recovery file is removed after a successful save. Captured clipboard history is never included. Secure Wipe removes the recovery file and its protected key along with the saved-snippets vault.</p>
+        <p>During an unlocked session, CoPaRe retains the protected lock key and authenticated macOS authorization in memory so that vault operations can use that authorization. Locking discards the cached key and invalidates the authorization. The normal saved-snippets vault is loaded on request; pending changes from the recovery file are restored after authenticated unlock.</p>
+        <p>Snippet titles and tags are visible in the list while CoPaRe is unlocked. Revealed contents are cleared from the detail view when you leave the app. The snippet editor hides its fields while the app is inactive, retaining unsaved edits until you return; locking the app dismisses the editor.</p>
+      </section>
+
+      <section class="content-section">
+        <h2>Snippet Backups and Exports</h2>
+        <p>You can create a password-protected encrypted backup of snippets loaded in the current session and restore it on another Mac. Encryption and decryption happen locally. CoPaRe does not save or transmit the backup password and cannot recover it. Captured clipboard history is not included in snippet backups.</p>
+        <p>Plain JSON import and export are also available. JSON exports contain readable snippet titles, bodies, and tags. CoPaRe writes backups and exports only to a location you choose; any file-provider synchronization depends on that location and your macOS settings. Exported files are separate from the local vault and are not removed by Secure Wipe.</p>
+      </section>
+
+      <section class="content-section">
+        <h2>Text Recognition in Images</h2>
+        <p>If sensitive-image scanning is enabled, CoPaRe uses Apple's Vision framework locally to help detect sensitive text in captured images. Separately, you can reveal an image and choose Copy Text to recognize and copy its text to the macOS clipboard. Images and recognized text are not sent to an online recognition service.</p>
+        <p>Copy Text does not add recognized text to searchable history or save it as a snippet. Pending results are discarded if you change the selected image, leave the app, hide its revealed content, or lock CoPaRe.</p>
+      </section>
+
+      <section class="content-section">
+        <h2>Automatic Locking and Clipboard Clearing</h2>
+        <p>When unlock protection is enabled, optional automatic locking can respond to leaving CoPaRe, Mac or display sleep, switching users, or a configured period without interaction in CoPaRe. The inactivity timer observes input within CoPaRe; it does not record typing in other apps. Capture is paused while the app is locked.</p>
+        <p>You can also set a delay after which CoPaRe clears a copy it placed on the system clipboard. It clears that copy only if the clipboard has not changed in the meantime. Removing an item from CoPaRe's history alone does not remove its copy from the system clipboard.</p>
+      </section>
+
+      <section class="content-section">
+        <h2>Actions You Choose</h2>
+        <p>If you choose Search on Web for an item, CoPaRe opens a Google search for that item's text in your default browser. If you choose Open URL, the browser opens that address. These actions share the search text or requested address with the selected website and are subject to that service's privacy policy.</p>
       </section>
 
       <section class="content-section">
@@ -56,6 +79,8 @@
         <ul>
           <li>using Secure Delete for individual clipboard entries,</li>
           <li>using Secure Wipe to clear history and saved snippets,</li>
+          <li>choosing automatic locking and timed system clipboard clearing in Settings,</li>
+          <li>managing or deleting exported snippet files at their chosen locations,</li>
           <li>turning off snippet persistence in Settings,</li>
           <li>deleting CoPaRe and its local app container data from macOS.</li>
         </ul>
@@ -72,14 +97,6 @@
       </section>
     </main>
 
-    <footer class="site-footer">
-      <span>© 2026 Eddy Boscolo</span>
-      <div class="footer-links">
-        <a href="/">Home</a>
-        <a href="/support/">Support</a>
-        <a href="https://apps.apple.com/it/app/copare/id6771382344?l=en-GB&amp;mt=12">App Store</a>
-        <a href="https://github.com/mane/CoPaRe">Source</a>
-      </div>
-    </footer>
+    <footer class="site-footer section-shell"><div><a class="brand" href="/"><img src="/assets/app-icon.png" width="28" height="28" alt=""><span>CoPaRe</span></a><span class="copyright">Made by Eddy Boscolo · © 2026</span></div><nav class="footer-links" aria-label="Footer navigation"><a href="/">Home</a><a href="/support/">Support</a><a href="https://github.com/mane/CoPaRe">GitHub <span aria-hidden="true">↗</span></a></nav></footer>
   </body>
 </html>
