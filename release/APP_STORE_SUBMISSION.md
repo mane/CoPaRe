@@ -94,3 +94,14 @@ CoPaRe 1.5.0 makes everyday copying faster and gives you more control over saved
 ## Verified Before This Release
 
 On 2026-09-23, Apple's public catalog and the authenticated CoPaRe App Store Connect page showed version `1.4.4` ready for distribution, with selected build `20`. The public release date was 2026-07-13. A local Apple Distribution signing identity and a matching Mac Team Store provisioning profile for `io.copare.app` were present; the profile expires on 2027-05-14. These observations establish the starting state, not the outcome of the `1.5.0` upload or review submission.
+
+## Submission Result
+
+On 2026-09-23, App Store Connect completed processing for `1.5.0 (21)` and the build was selected for macOS version `1.5.0`. The updated English metadata and review instructions were saved, and the version was submitted to App Review after the updated public website was deployed.
+
+- Confirmed submission result: `1 Item Submitted`
+- Confirmed version status: `Waiting for Review`
+- Release setting: automatically release after approval, to all users immediately
+- Review submission: https://appstoreconnect.apple.com/apps/6771382344/distribution/reviewsubmissions/details/3e050ad6-f0a9-48f5-81d4-8cd85d72af64
+
+This records successful submission, not Apple approval or public App Store availability of `1.5.0`.
