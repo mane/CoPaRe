@@ -1,8 +1,32 @@
 import CryptoKit
 import Foundation
+import LocalAuthentication
 import OSLog
 
-struct SnippetPersistenceRecord: Equatable, Sendable {
+/// Keeps vault encryption real while allowing isolated storage and key material in tests.
+struct SnippetKeyOperations: Sendable {
+    let loadOrCreate: @Sendable (String, Bool, LAContext?) throws -> SymmetricKey
+    let delete: @Sendable (String, Bool) throws -> Void
+
+    nonisolated init(
+        loadOrCreate: @escaping @Sendable (String, Bool, LAContext?) throws -> SymmetricKey,
+        delete: @escaping @Sendable (String, Bool) throws -> Void
+    ) {
+        self.loadOrCreate = loadOrCreate
+        self.delete = delete
+    }
+
+    nonisolated static let keychain = SnippetKeyOperations(
+        loadOrCreate: { service, requiresUserPresence, context in
+            try KeychainKeyProvider(service: service, requiresUserPresence: requiresUserPresence).loadOrCreateKey(authenticationContext: context)
+        },
+        delete: { service, requiresUserPresence in
+            try KeychainKeyProvider(service: service, requiresUserPresence: requiresUserPresence).deleteKey()
+        }
+    )
+}
+
+nonisolated struct SnippetPersistenceRecord: Codable, Equatable, Sendable {
     let id: UUID
     let preview: String
     let body: String
@@ -107,24 +131,30 @@ actor SnippetStore {
 
     private let fileManager: FileManager
     private let fileURL: URL
+    private let keyOperations: SnippetKeyOperations
     private let logger = Logger(subsystem: "io.copare.app", category: "snippets")
     private var operationGeneration = 0
 
-    init(fileManager: FileManager = .default) {
+    init(
+        fileManager: FileManager = .default,
+        fileURL: URL? = nil,
+        keyOperations: SnippetKeyOperations = .keychain
+    ) {
         self.fileManager = fileManager
+        self.keyOperations = keyOperations
 
         let appSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSTemporaryDirectory())
         let directory = appSupport.appendingPathComponent("CoPaRe", isDirectory: true)
-        fileURL = directory.appendingPathComponent("snippets.json", isDirectory: false)
+        self.fileURL = fileURL ?? directory.appendingPathComponent("snippets.json", isDirectory: false)
     }
 
     func hasSavedSnippets() -> Bool {
         fileManager.fileExists(atPath: fileURL.path)
     }
 
-    func loadSnippets() -> [ClipboardHistoryItem]? {
-        guard let records = loadSnippetRecords() else {
+    func loadSnippets(authenticationContext: LAContext? = nil) -> [ClipboardHistoryItem]? {
+        guard let records = loadSnippetRecords(authenticationContext: authenticationContext) else {
             return nil
         }
 
@@ -140,7 +170,7 @@ actor SnippetStore {
         return items
     }
 
-    func loadSnippetRecords() -> [SnippetPersistenceRecord]? {
+    func loadSnippetRecords(authenticationContext: LAContext? = nil) -> [SnippetPersistenceRecord]? {
         do {
             guard fileManager.fileExists(atPath: fileURL.path) else {
                 return []
@@ -168,7 +198,7 @@ actor SnippetStore {
                 logger.error("Rejected snippet store with an unknown key service")
                 return nil
             }
-            let key = try keyProvider(for: keyService).loadOrCreateKey()
+            let key = try keyOperations.loadOrCreate(keyService, keyService == Self.protectedSnippetKeyService, authenticationContext)
             let decryptedData = try AES.GCM.open(sealedBox, using: key)
             let snippets = try JSONDecoder().decode([PersistedSnippet].self, from: decryptedData)
 
@@ -183,7 +213,8 @@ actor SnippetStore {
     func saveSnippets(
         _ records: [SnippetPersistenceRecord],
         requireUserPresence: Bool,
-        generation: Int
+        generation: Int,
+        authenticationContext: LAContext? = nil
     ) -> Bool {
         guard generation > operationGeneration else {
             return false
@@ -206,7 +237,7 @@ actor SnippetStore {
 
             let payload = try JSONEncoder().encode(snippets)
             let keyService = snippetKeyService(for: requireUserPresence)
-            let key = try keyProvider(for: keyService).loadOrCreateKey()
+            let key = try keyOperations.loadOrCreate(keyService, requireUserPresence, authenticationContext)
             let sealed = try AES.GCM.seal(payload, using: key)
             let envelope = Envelope(
                 version: 1,
@@ -307,13 +338,6 @@ actor SnippetStore {
         requireUserPresence ? Self.protectedSnippetKeyService : Self.snippetKeyService
     }
 
-    private func keyProvider(for service: String) -> KeychainKeyProvider {
-        KeychainKeyProvider(
-            service: service,
-            requiresUserPresence: service == Self.protectedSnippetKeyService
-        )
-    }
-
     private func deleteAllSnippetKeys() -> Bool {
         let regularDeleted = deleteSnippetKeyIfPresent(service: Self.snippetKeyService)
         let protectedDeleted = deleteSnippetKeyIfPresent(service: Self.protectedSnippetKeyService)
@@ -322,7 +346,7 @@ actor SnippetStore {
 
     private func deleteSnippetKeyIfPresent(service: String) -> Bool {
         do {
-            try keyProvider(for: service).deleteKey()
+            try keyOperations.delete(service, service == Self.protectedSnippetKeyService)
             return true
         } catch {
             logger.error("Failed to delete snippet encryption key for \(service, privacy: .public): \(error.localizedDescription, privacy: .public)")

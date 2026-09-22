@@ -150,7 +150,7 @@ resolve_version() {
 
 RELEASE_VERSION="$(resolve_version)"
 if [[ -z "${SPARKLE_DOWNLOAD_URL_PREFIX}" ]]; then
-  SPARKLE_DOWNLOAD_URL_PREFIX="https://github.com/mane/CoPaRe/releases/latest/download/"
+  SPARKLE_DOWNLOAD_URL_PREFIX="https://github.com/mane/CoPaRe/releases/download/v${RELEASE_VERSION}/"
 fi
 DMG_NAME="${APP_NAME}-v${RELEASE_VERSION}.dmg"
 DMG_PATH="${DIST_DIR}/${DMG_NAME}"
@@ -174,6 +174,7 @@ DMGBUILD_VENV_DIR="${BUILD_DIR}/release-tools-venv"
 DMGBUILD_BIN="${DMGBUILD_BIN:-}"
 TEMP_DMGBUILD_SETTINGS=""
 TEMP_DMGBUILD_DIR=""
+TEMP_APPCAST_DIR=""
 INSTALL_TEMP_DIR=""
 INSTALL_BACKUP_PATH=""
 SPARKLE_BIN_DIR="${DERIVED_DATA_DIR}/SourcePackages/artifacts/sparkle/Sparkle/bin"
@@ -259,6 +260,9 @@ cleanup_mount() {
   fi
   if [[ -n "${TEMP_DMGBUILD_DIR}" && -d "${TEMP_DMGBUILD_DIR}" ]]; then
     rm -rf "${TEMP_DMGBUILD_DIR}"
+  fi
+  if [[ -n "${TEMP_APPCAST_DIR}" && -d "${TEMP_APPCAST_DIR}" ]]; then
+    rm -rf "${TEMP_APPCAST_DIR}"
   fi
   if [[ -n "${INSTALL_BACKUP_PATH}" && ( -e "${INSTALL_BACKUP_PATH}" || -L "${INSTALL_BACKUP_PATH}" ) ]]; then
     if [[ ! -e "${INSTALL_PATH}" && ! -L "${INSTALL_PATH}" ]]; then
@@ -360,15 +364,21 @@ if [[ ! -x "${GENERATE_APPCAST_BIN}" ]]; then
 fi
 
 echo "[4/11] Create Sparkle update archive ${ZIP_NAME}"
-# Keep older archives available so Sparkle can generate delta updates.
-rm -f "${ZIP_PATH}" "${RELEASE_DIR}/${APP_NAME}"*.delta
+# Keep older local archives, but publish only the current version in the feed.
+rm -f "${ZIP_PATH}"
 ditto -c -k --sequesterRsrc --keepParent "${STAGED_APP_PATH}" "${ZIP_PATH}"
 
 echo "[5/11] Refresh Sparkle appcast"
+TEMP_APPCAST_DIR="$(mktemp -d "${BUILD_DIR}/appcast.XXXXXX")"
+cp "${ZIP_PATH}" "${TEMP_APPCAST_DIR}/${ZIP_NAME}"
 "${GENERATE_APPCAST_BIN}" \
   --account "${SPARKLE_KEY_ACCOUNT}" \
   --download-url-prefix "${SPARKLE_DOWNLOAD_URL_PREFIX}" \
-  "${RELEASE_DIR}"
+  "${TEMP_APPCAST_DIR}"
+# Preserve Sparkle's signed bytes exactly; never rewrite the generated XML.
+cp "${TEMP_APPCAST_DIR}/appcast.xml" "${RELEASE_DIR}/appcast.xml"
+rm -rf "${TEMP_APPCAST_DIR}"
+TEMP_APPCAST_DIR=""
 
 echo "[6/11] Create DMG ${DMG_NAME}"
 rm -f "${DMG_PATH}" "${SHA_PATH}"

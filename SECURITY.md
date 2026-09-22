@@ -15,13 +15,15 @@ Implemented controls:
 - Release entitlement `com.apple.security.get-task-allow = false`
 - Captured clipboard history is session-only and is never written to disk
 - Runtime payloads are wrapped with an in-memory session key and revealed on demand
-- Locking CoPaRe temporarily removes live history from the normal in-memory path, encrypts a short-lived lock snapshot, and pauses clipboard capture until unlock
+- Locking CoPaRe temporarily removes live history from the normal in-memory path, encrypts a RAM-only lock snapshot, and pauses clipboard capture until unlock
 - Preview text is auto-masked for likely secret/token-like captures
 - Search indexing avoids storing full plaintext bodies for copied text/URL entries
 - Optional snippet persistence stores only user-authored snippets in an encrypted vault at rest in the app support container with restrictive local file permissions
-- No automatic Keychain access in the normal app launch path; Keychain is touched only when saving or explicitly loading the encrypted snippets vault
+- Keychain access is used for snippet-vault operations, lock/unlock, and cleanup; ordinary clipboard capture does not access Keychain
 - When app lock is enabled, the saved-snippets vault key is stored with `userPresence`, so macOS requires system authentication before releasing that key
-- Lock snapshots are encrypted with a Keychain-backed key and no in-memory fallback key is kept while the app is locked
+- The manager retains the protected lock-snapshot key and an authenticated `LAContext` during the unlocked session. Protected vault operations reuse that context with `interactionNotAllowed` enabled; locking discards the cached key and invalidates the context
+- With snippet persistence and unlock protection enabled, pending manual snippet changes and deletion markers are encrypted in a local recovery file before asynchronous saving or automatic lock. The recovery file uses the protected snapshot key and never contains captured history. Pending changes are recovered after authenticated unlock and the file is removed after a successful normal-vault save
+- Secure Wipe removes the recovery file and attempts deletion of its protected key as well as the normal snippet-vault keys; incomplete cleanup is reported
 - Sensitive file-path filtering evaluates both original and symlink-resolved paths
 - Frontmost app exclusion rules prevent capture from configured bundle identifiers
 - Focused detail payloads are cleared when the app resigns active and after a short timeout

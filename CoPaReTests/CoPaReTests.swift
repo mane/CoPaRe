@@ -242,41 +242,25 @@ struct CoPaReTests {
     }
 
     @MainActor
-    @Test func snippetsPreserveUserWhitespace() {
-        let suiteName = "io.copare.tests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.set(false, forKey: "persistHistory")
-        defer {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
-
-        let settings = SettingsStore(defaults: defaults)
-        let manager = ClipboardManager(settings: settings)
+    @Test func snippetsPreserveUserWhitespace() throws {
+        let fixture = try IsolatedClipboardFixture()
         let body = "  indented value\n"
 
-        manager.addSnippet(title: "", body: body)
+        fixture.manager.addSnippet(title: "", body: body)
 
-        #expect(manager.items.first?.decryptedPayload()?.plainText == body)
+        #expect(fixture.manager.items.first?.decryptedPayload()?.plainText == body)
     }
 
     @MainActor
-    @Test func snippetsStoreNormalizedTags() {
-        let suiteName = "io.copare.tests.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.set(false, forKey: "persistHistory")
-        defer {
-            defaults.removePersistentDomain(forName: suiteName)
-        }
+    @Test func snippetsStoreNormalizedTags() throws {
+        let fixture = try IsolatedClipboardFixture()
 
-        let settings = SettingsStore(defaults: defaults)
-        let manager = ClipboardManager(settings: settings)
+        fixture.manager.addSnippet(title: "Tagged", body: "body", tags: ["Work", "#swift", "work"])
 
-        manager.addSnippet(title: "Tagged", body: "body", tags: ["Work", "#swift", "work"])
-
-        #expect(manager.items.first?.tags == ["work", "swift"])
-        #expect(manager.filteredItems.first?.preview == "Tagged")
-        manager.searchText = "#swift"
-        #expect(manager.filteredItems.first?.preview == "Tagged")
+        #expect(fixture.manager.items.first?.tags == ["work", "swift"])
+        #expect(fixture.manager.filteredItems.first?.preview == "Tagged")
+        fixture.manager.searchText = "#swift"
+        #expect(fixture.manager.filteredItems.first?.preview == "Tagged")
     }
 
 }

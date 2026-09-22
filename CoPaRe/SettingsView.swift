@@ -8,8 +8,11 @@ struct SettingsView: View {
     @EnvironmentObject private var updates: AppUpdateChecker
     @State private var isShowingSecureWipeConfirmation = false
     @State private var snippetTransferMessage: String?
+    @State private var snippetTransferFailed = false
+    @State private var isTransferringSnippets = false
     @State private var excludedAppsDraft = ""
     @State private var appCaptureRulesDraft = ""
+    @State private var snippetBackupAction: SnippetBackupAction?
 
     private var panelColor: Color {
         Color(nsColor: NSColor.controlBackgroundColor)
@@ -41,6 +44,27 @@ struct SettingsView: View {
                     Toggle("One-time copy for unpinned history items", isOn: $settings.oneTimeCopyEnabled)
                     Toggle("Require unlock to view history", isOn: $settings.lockProtectionEnabled)
                         .disabled(manager.isLocked)
+                    Toggle("Lock when leaving CoPaRe or the Mac sleeps", isOn: $settings.lockOnSystemEvents)
+                        .disabled(!settings.lockProtectionEnabled || manager.isLocked)
+                    Picker("Lock after inactivity in CoPaRe", selection: $settings.autoLockInterval) {
+                        ForEach(AutoLockInterval.allCases) { interval in
+                            Text(interval.label).tag(interval)
+                        }
+                    }
+                    .disabled(!settings.lockProtectionEnabled || manager.isLocked)
+
+                    Text("Automatic locking applies when unlock protection is enabled. Leaving CoPaRe, display sleep, Mac sleep, and switching users can lock the app; inactivity measures interaction with CoPaRe.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    Picker("Clear copied system clipboard after", selection: $settings.clipboardClearInterval) {
+                        ForEach(ClipboardClearInterval.allCases) { interval in
+                            Text(interval.label).tag(interval)
+                        }
+                    }
+                    Text("Clears a copy made by CoPaRe only if nothing newer has been copied. One-time copy removes the history entry immediately; this setting also limits how long its copied content remains on the system clipboard.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                     Toggle("Enable global shortcut (\(GlobalHotKeyService.shortcutDisplayName))", isOn: $settings.globalShortcutEnabled)
                     Toggle("Launch at login", isOn: $settings.launchAtLogin)
 
@@ -99,23 +123,67 @@ struct SettingsView: View {
 
                 sectionCard(title: "Snippets") {
                     HStack(spacing: 10) {
-                        Button("Import Snippets") {
+                        Button("Create Encrypted Backup…") {
+                            snippetBackupAction = .export
+                        }
+                        .disabled(manager.isLocked || manager.isVaultTransitioning || isTransferringSnippets || !manager.items.contains(where: \.isSnippet))
+
+                        Button("Restore Encrypted Backup…") {
+                            snippetBackupAction = .restore
+                        }
+                        .disabled(manager.isLocked || manager.isVaultTransitioning || isTransferringSnippets)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Text("Password-protected backups can be restored on any Mac. Only loaded snippets are backed up. Keep the password: CoPaRe cannot recover it.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    Divider()
+
+                    HStack(spacing: 10) {
+                        Button("Import JSON") {
                             importSnippets()
                         }
                         .buttonStyle(.bordered)
-                        .disabled(manager.isLocked)
+                        .disabled(manager.isLocked || manager.isVaultTransitioning || isTransferringSnippets)
 
-                        Button("Export Snippets") {
+                        Button("Export Loaded JSON") {
                             exportSnippets()
                         }
                         .buttonStyle(.bordered)
-                        .disabled(manager.isLocked || !manager.items.contains(where: \.isSnippet))
+                        .disabled(manager.isLocked || manager.isVaultTransitioning || isTransferringSnippets || !manager.items.contains(where: \.isSnippet))
+
+                        if isTransferringSnippets {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                    }
+
+                    Text("JSON exports contain readable text, including snippet bodies and tags. Only snippets loaded in this session are exported. JSON files are limited to 10 MB; encrypted backup files to 14 MB.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+
+                    if settings.persistHistory, manager.hasSavedSnippetsAvailable, !manager.savedSnippetsLoaded {
+                        Button("Load Saved Snippets") {
+                            isTransferringSnippets = true
+                            snippetTransferMessage = nil
+                            Task { @MainActor in
+                                defer { isTransferringSnippets = false }
+                                await manager.loadSavedSnippets()
+                                snippetTransferFailed = !manager.savedSnippetsLoaded
+                                snippetTransferMessage = manager.savedSnippetsLoaded
+                                    ? "Saved snippets loaded and ready to export."
+                                    : "Saved snippets could not be loaded. Unlock the vault and try again."
+                            }
+                        }
+                        .disabled(manager.isLocked || manager.isVaultTransitioning || isTransferringSnippets)
                     }
 
                     if let snippetTransferMessage {
                         Text(snippetTransferMessage)
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(snippetTransferFailed ? .red : .secondary)
                     }
                 }
 
@@ -230,6 +298,12 @@ struct SettingsView: View {
             commitExcludedAppsDraft()
             commitAppCaptureRulesDraft()
         }
+        .sheet(item: $snippetBackupAction) { action in
+            SnippetBackupView(action: action) { message in
+                snippetTransferFailed = false
+                snippetTransferMessage = message
+            }
+        }
         .alert("Secure wipe entire history?", isPresented: $isShowingSecureWipeConfirmation) {
             Button("Cancel", role: .cancel) {}
             Button("Secure Wipe", role: .destructive) {
@@ -295,9 +369,19 @@ struct SettingsView: View {
             return
         }
 
-        snippetTransferMessage = manager.exportSnippets(to: url)
-            ? "Snippets exported."
-            : "Snippet export failed."
+        isTransferringSnippets = true
+        snippetTransferMessage = nil
+        Task { @MainActor in
+            defer { isTransferringSnippets = false }
+            do {
+                try manager.exportSnippets(to: url)
+                snippetTransferFailed = false
+                snippetTransferMessage = "Loaded snippets exported."
+            } catch {
+                snippetTransferFailed = true
+                snippetTransferMessage = error.localizedDescription
+            }
+        }
     }
 
     private func importSnippets() {
@@ -310,9 +394,25 @@ struct SettingsView: View {
             return
         }
 
-        let importedCount = manager.importSnippets(from: url)
-        snippetTransferMessage = importedCount == 1
-            ? "Imported 1 snippet."
-            : "Imported \(importedCount) snippets."
+        isTransferringSnippets = true
+        snippetTransferMessage = nil
+        Task { @MainActor in
+            defer { isTransferringSnippets = false }
+            do {
+                let importedCount = try await manager.importSnippets(from: url)
+                snippetTransferFailed = false
+                switch importedCount {
+                case 0:
+                    snippetTransferMessage = "No new snippets to import."
+                case 1:
+                    snippetTransferMessage = "Imported 1 snippet."
+                default:
+                    snippetTransferMessage = "Imported \(importedCount) snippets."
+                }
+            } catch {
+                snippetTransferFailed = true
+                snippetTransferMessage = error.localizedDescription
+            }
+        }
     }
 }

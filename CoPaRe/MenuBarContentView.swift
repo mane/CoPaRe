@@ -7,6 +7,10 @@ struct MenuBarContentView: View {
     @EnvironmentObject private var windowCoordinator: WindowCoordinator
 
     var body: some View {
+        Button("Quick Copy…") {
+            windowCoordinator.toggleQuickPanel()
+        }
+
         Button("Open CoPaRe") {
             windowCoordinator.openMainWindow(focusSearch: false)
         }
@@ -14,6 +18,7 @@ struct MenuBarContentView: View {
         if manager.settings.lockProtectionEnabled {
             if manager.isLocked {
                 Button("Unlock CoPaRe") {
+                    windowCoordinator.openMainWindow(focusSearch: true)
                     Task {
                         await manager.unlock()
                     }

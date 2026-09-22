@@ -3,42 +3,46 @@
 ## Current Target
 
 - App: CoPaRe
-- Version: 1.4.4
-- Build: 18
+- Version: 1.5.0
+- Build: 21
 - Bundle ID: io.copare.app
+- Apple ID: 6771382344
 - Team ID: 6246LWZM9N
 - Category: Productivity
 - Distribution: Mac App Store build, separate from the GitHub/Sparkle build
+- Release behavior: automatically release after App Review approval, preserving the existing listing's setting
 
 ## Prepared In This Repository
 
-- `scripts/app-store-build.sh` creates a temporary App Store project copy with Sparkle removed from the project graph.
+- `scripts/app-store-build.sh` creates a temporary App Store project copy and builds the dedicated `CoPaRe` target without Sparkle.
 - `APP_STORE` compilation disables the in-app Sparkle updater UI and status flow.
-- App Store export strips Sparkle `SU*` keys from `Info.plist`.
-- `CoPaRe/CoPaRe.AppStore.entitlements` enables sandboxing and user-selected file access without Sparkle mach lookup exceptions.
+- Every App Store configuration uses `CoPaRe-AppStore-Info.plist`; packaging rejects any Sparkle `SU*` keys instead of relying on export-time removal.
+- `CoPaRe/CoPaRe.AppStore.entitlements` enables sandboxing and user-selected file access without network permissions or Sparkle mach lookup exceptions. Debug has a separate entitlement file for debugger attachment.
 - `CoPaRe/PrivacyInfo.xcprivacy` is bundled as an app resource and declares required-reason API usage for file timestamps and UserDefaults.
+- All six new features share their implementation with the GitHub target and use public macOS APIs without new permissions. See `docs/DISTRIBUTION.md` for implementation details and manual verification scenarios.
+- The current English listing, release notes, review instructions, and encryption explanation are in `release/APP_STORE_METADATA_en-US.md`.
 
 ## Local Verification
 
-Run this whenever the App Store path changes:
+Run this whenever the App Store path changes. Preserve any existing `build/app-store/export/` package first because the script replaces its working and export directories.
 
 ```bash
 ./scripts/app-store-build.sh --unsigned-check
 ```
 
-Create a signed local App Store archive/export after signing is configured:
+Create a signed App Store archive/package using the configured Xcode account:
 
 ```bash
 ./scripts/app-store-build.sh --allow-provisioning-updates
 ```
 
-Upload directly to App Store Connect after signing/API credentials are configured:
+Upload directly to App Store Connect with the configured Xcode account:
 
 ```bash
 ./scripts/app-store-build.sh --allow-provisioning-updates --upload
 ```
 
-Or with an explicit App Store Connect API key:
+Or provide an App Store Connect API key explicitly:
 
 ```bash
 ./scripts/app-store-build.sh \
@@ -49,35 +53,44 @@ Or with an explicit App Store Connect API key:
   --upload
 ```
 
-## App Review Notes Draft
+The upload only delivers a build. Wait for processing, select the build in the macOS version, and submit that version for App Review separately. Do not upload the Sparkle-enabled GitHub target.
 
-CoPaRe is a local macOS menu bar clipboard utility. Clipboard capture and history management run locally on the device. Captured history is session-only unless the user explicitly saves snippets; saved snippets are stored in an encrypted local vault. The app does not require an account, server, subscription, or external updater in the App Store build. Updates for this build are delivered through the Mac App Store. The global shortcut and launch-at-login behavior are user-controlled in Settings.
+## What's New
 
-## What's New Draft
+CoPaRe 1.5.0 makes everyday copying faster and gives you more control over saved content:
 
-CoPaRe 1.4.4 improves reliability and privacy:
+- Quick Copy: press Option-Command-V, search, select with the arrow keys, and press Return to copy and return to your previous app.
+- Edit and duplicate snippets, or save captured text and URLs as reusable snippets.
+- Automatically lock when leaving CoPaRe, on display or Mac sleep, on user switching, or after inactivity in the app.
+- Expire copies made by CoPaRe from the system clipboard while preserving anything copied afterward.
+- Create password-protected snippet backups and restore them on another Mac.
+- Copy text from images with on-device recognition.
+- Recover pending snippet edits after locking and quitting, without saving captured clipboard history.
+- More reliable imports, clearer transfer errors, and faster capture-rule handling.
 
-- Safer app locking and encrypted snippet persistence.
-- Secure Delete now stays deleted, including snippets not yet loaded.
-- Stronger sensitive-content filtering for images and per-app capture rules.
-- More reliable shortcuts, onboarding, settings, and clipboard actions.
-
-## App Privacy Draft
+## App Privacy And Encryption
 
 - Tracking: No
 - Data collected: None
 - Third-party advertising: No
 - Account required: No
+- Recognition and clipboard processing happen on the Mac.
+- Optional Search Web opens the user's default browser with selected text only after an explicit action.
+- Clipboard captures are session-only. Only explicitly saved snippets can persist in the encrypted vault or protected pending-change recovery file.
+- Backups are encrypted using macOS CommonCrypto and CryptoKit. Readable JSON export remains a distinct user-selected action.
+- `ITSAppUsesNonExemptEncryption` is `NO` under Apple's operating-system-only encryption category. Reassess if a bundled cryptographic implementation or other encryption use is introduced.
 
-Use this draft only if the submitted product remains local-only and no analytics, crash reporting, telemetry, cloud sync, or third-party SDK data collection is added before submission.
+## App Store Connect Release Steps
 
-## Manual App Store Connect Items
+1. Open the CoPaRe record for Apple ID `6771382344` and confirm bundle ID `io.copare.app`.
+2. Create macOS version `1.5.0` and apply the English metadata, What's New, and detailed review notes from `APP_STORE_METADATA_en-US.md`.
+3. Preserve existing review contact details, price, availability, category, and age-rating information unless Apple requires a specific update.
+4. Verify existing macOS screenshots remain accurate for the submitted interface and add current screenshots when needed.
+5. Upload the App Store build and wait until `1.5.0 (21)` finishes processing. Select that exact build for the new version.
+6. Confirm App Privacy and encryption declarations match the implementation described above. Check any outstanding agreement or questionnaire requirements presented by Apple.
+7. Keep automatic release after approval selected. Add the version for review and complete the review submission.
+8. Record the resulting App Review status. A successful upload or submission is not yet a public App Store release; distribution starts after Apple approves and releases the version.
 
-- Verify the existing App Store Connect record for bundle ID `io.copare.app` and Apple ID `6771382344`.
-- Create the macOS version `1.4.4`, select build `18`, and copy the What's New text above.
-- Ensure the primary category in App Store Connect is Productivity, matching `LSApplicationCategoryType`.
-- Add screenshots for macOS.
-- Add description, keywords, support URL, marketing URL if desired, copyright, age rating, price, and availability.
-- Confirm the privacy questionnaire matches the local-only behavior above.
-- Confirm all current Apple Developer Program agreements are accepted.
-- Configure signing for team `6246LWZM9N`: Xcode account/API key plus Apple Development/Apple Distribution or Mac App Distribution assets and a Mac App Store provisioning profile.
+## Verified Before This Release
+
+On 2026-09-23, Apple's public catalog and the authenticated CoPaRe App Store Connect page showed version `1.4.4` ready for distribution, with selected build `20`. The public release date was 2026-07-13. A local Apple Distribution signing identity and a matching Mac Team Store provisioning profile for `io.copare.app` were present; the profile expires on 2027-05-14. These observations establish the starting state, not the outcome of the `1.5.0` upload or review submission.

@@ -20,7 +20,9 @@ final class CoPaReUITestsLaunchTests: XCTestCase {
     @MainActor
     func testLaunch() throws {
         let app = XCUIApplication()
+        app.launchEnvironment["COPARE_UI_TESTS"] = "1"
         app.launch()
+        XCTAssertTrue(app.windows["CoPaRe"].waitForExistence(timeout: 5))
 
         // Insert steps here to perform after app launch but before taking a screenshot,
         // such as logging into a test account or navigating somewhere in the app

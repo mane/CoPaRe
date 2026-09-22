@@ -235,8 +235,8 @@ struct SecurityOnboardingView: View {
                 )
                 featureRow(
                     symbol: "menubar.rectangle",
-                    title: "Menu bar shortcuts",
-                    description: "Open CoPaRe fast and run quick actions without opening the main window."
+                    title: "Quick Copy and menu bar",
+                    description: "Press ⌥⌘V to search, use arrows to select, and Return to copy. The menu bar also opens the full window."
                 )
             }
         case 1:

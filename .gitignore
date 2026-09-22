@@ -11,6 +11,7 @@ xcuserdata/
 build/
 dist/
 DerivedData/
+.playwright-cli/
 release/*.zip
 release/*.delta
 

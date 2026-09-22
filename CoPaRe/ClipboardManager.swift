@@ -88,24 +88,11 @@ private enum PreparedLockedSnapshot {
     }
 }
 
-private struct SnippetExportDocument: Codable {
-    let version: Int
-    let exportedAt: Date
-    let snippets: [SnippetExportItem]
-}
-
-private struct SnippetExportItem: Codable {
-    let title: String
-    let body: String
-    let tags: [String]
-    let createdAt: Date
-    let updatedAt: Date
-    let pinned: Bool
-}
-
 @MainActor
 final class ClipboardManager: ObservableObject {
-    @Published private(set) var items: [ClipboardHistoryItem] = []
+    @Published private(set) var items: [ClipboardHistoryItem] = [] {
+        didSet { contentRevision += 1 }
+    }
     @Published var searchText = ""
     @Published var activeFilter: ClipboardFilter = .all
     @Published var isMonitoringEnabled = true {
@@ -120,25 +107,43 @@ final class ClipboardManager: ObservableObject {
     @Published private(set) var secureWipeMessage: String?
     @Published private(set) var secureWipeFailed = false
     @Published private(set) var privacyPauseUntil: Date?
-    @Published private(set) var isVaultTransitioning = false
+    @Published private(set) var isVaultTransitioning = false {
+        didSet {
+            if !isVaultTransitioning, automaticLockPending {
+                automaticLockPending = false
+                lockAutomatically()
+            }
+        }
+    }
+    @Published private(set) var isUnlocking = false
     @Published private(set) var lockFailureMessage: String?
 
     let settings: SettingsStore
 
     private let snippetStore: SnippetStore
+    private let checkpointStore: SnippetCheckpointStore
     private let captureService: ClipboardCaptureService
+    private let startsAutomatically: Bool
     private let logger = Logger(subsystem: "io.copare.app", category: "lock")
-    private let lockSnapshotKeyProvider = KeychainKeyProvider(
-        service: "io.copare.app.lock-snapshot",
-        requiresUserPresence: true,
-        cacheInMemory: false
-    )
+    private let lockSnapshotKeyLoader: (LAContext?) throws -> SymmetricKey
+    private let lockSnapshotKeyDeleter: () throws -> Void
+    private let authenticateForUnlock: (LAContext) async throws -> Bool
+    private let rotateSessionKey: () -> Void
+    private var autoLockService: AutoLockService?
+    // Available only during an authenticated unlocked session. Automatic lock
+    // can seal immediately without attempting Keychain UI on a sleeping Mac.
+    private var unlockedSnapshotKey: SymmetricKey?
+    private var automaticLockPending = false
+    private var securityEventGeneration = 0
+    private var activeAuthenticationContext: LAContext?
+    private var unlockedAuthenticationContext: LAContext?
 
     private var persistTask: Task<Void, Never>?
     private var expirationTimer: Timer?
     private var privacyPauseTimer: Timer?
     private var lockedSnapshotEnvelope: LockedClipboardEnvelope?
     private var vaultOperationGeneration = 0
+    private var contentRevision = 0
     private var settingsGeneration = 0
     private var pendingSnippetDeletionIDs: Set<UUID> = []
     private var disabledPersistenceCleanupFailed = false
@@ -147,24 +152,49 @@ final class ClipboardManager: ObservableObject {
 
     init(
         settings: SettingsStore,
-        snippetStore: SnippetStore = SnippetStore()
+        snippetStore: SnippetStore = SnippetStore(),
+        checkpointStore: SnippetCheckpointStore = SnippetCheckpointStore(),
+        captureService: ClipboardCaptureService? = nil,
+        startsAutomatically: Bool = true,
+        lockSnapshotKeyLoader: @escaping (LAContext?) throws -> SymmetricKey = { context in
+            try KeychainKeyProvider(
+                service: "io.copare.app.lock-snapshot",
+                requiresUserPresence: true,
+                cacheInMemory: false
+            ).loadOrCreateKey(authenticationContext: context)
+        },
+        lockSnapshotKeyDeleter: @escaping () throws -> Void = {
+            try KeychainKeyProvider(service: "io.copare.app.lock-snapshot", requiresUserPresence: true, cacheInMemory: false).deleteKey()
+        },
+        authenticateForUnlock: @escaping (LAContext) async throws -> Bool = { context in
+            var error: NSError?
+            guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else { return false }
+            return try await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Unlock CoPaRe to view clipboard history")
+        },
+        rotateSessionKey: @escaping () -> Void = { EncryptedClipboardPayload.rotateSessionProtectionKey() }
     ) {
         self.settings = settings
         self.snippetStore = snippetStore
-        captureService = ClipboardCaptureService(settings: settings)
+        self.checkpointStore = checkpointStore
+        self.captureService = captureService ?? ClipboardCaptureService(settings: settings)
+        self.startsAutomatically = startsAutomatically
+        self.lockSnapshotKeyLoader = lockSnapshotKeyLoader
+        self.lockSnapshotKeyDeleter = lockSnapshotKeyDeleter
+        self.authenticateForUnlock = authenticateForUnlock
+        self.rotateSessionKey = rotateSessionKey
         isLocked = settings.lockProtectionEnabled
         appliedLockProtectionEnabled = settings.lockProtectionEnabled
         appliedPersistenceEnabled = settings.persistHistory
 
-        captureService.onCapture = { [weak self] capture in
+        self.captureService.onCapture = { [weak self] capture in
             self?.handleCapture(capture)
         }
 
-        captureService.onSensitiveContentSkipped = { [weak self] in
+        self.captureService.onSensitiveContentSkipped = { [weak self] in
             self?.mutateSecurityCounters { $0.sensitiveContentBlocked += 1 }
         }
 
-        captureService.onExcludedApplicationSkipped = { [weak self] in
+        self.captureService.onExcludedApplicationSkipped = { [weak self] in
             self?.mutateSecurityCounters { $0.excludedApplicationSkips += 1 }
         }
 
@@ -173,11 +203,21 @@ final class ClipboardManager: ObservableObject {
         }
 
         syncCaptureServiceMonitoringState()
-        captureService.start()
-        configureExpirationTimer()
+        if startsAutomatically {
+            let autoLockService = AutoLockService(settings: settings) { [weak self] reason in
+                guard let self else { return }
+                // Authentication's own focus changes are not user inactivity.
+                guard reason == .system || !self.isUnlocking else { return }
+                self.lockAutomatically()
+            }
+            self.autoLockService = autoLockService
+            autoLockService.start()
+            self.captureService.start()
+            configureExpirationTimer()
 
-        Task {
-            await loadInitialState()
+            Task {
+                await loadInitialState()
+            }
         }
     }
 
@@ -266,18 +306,31 @@ final class ClipboardManager: ObservableObject {
         SourceApplicationResolver.displayName(for: item.sourceBundleIdentifier)
     }
 
-    func copyToClipboard(_ item: ClipboardHistoryItem) {
-        guard !isLocked, !isVaultTransitioning else {
-            return
+    @discardableResult
+    func copyToClipboard(_ item: ClipboardHistoryItem) -> Bool {
+        guard let current = self.item(with: item.id), current.digest == item.digest else {
+            return false
         }
 
-        guard captureService.writeToPasteboard(item: item) else {
-            return
+        guard captureService.writeToPasteboard(item: current) else {
+            return false
         }
 
         if settings.oneTimeCopyEnabled, !item.isPinned, !item.isSnippet {
             remove(itemID: item.id, immediatelyPersist: true)
         }
+        return true
+    }
+
+    @discardableResult
+    func copyRecognizedText(_ text: String, from itemID: UUID) -> Bool {
+        guard let item = item(with: itemID), item.type == .image,
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              captureService.writeString(text) else { return false }
+        if settings.oneTimeCopyEnabled, !item.isPinned {
+            remove(itemID: itemID, immediatelyPersist: true)
+        }
+        return true
     }
 
     func copyAsPlainText(_ item: ClipboardHistoryItem) {
@@ -388,7 +441,43 @@ final class ClipboardManager: ObservableObject {
 
     @discardableResult
     func lock() async -> Bool {
-        await lock(expectedSettingsGeneration: settingsGeneration)
+        securityEventGeneration += 1
+        return await lock(expectedSettingsGeneration: settingsGeneration)
+    }
+
+    /// Seals session data synchronously without prompting for authentication.
+    /// Pending persisted snippet edits also use the encrypted recovery checkpoint.
+    @discardableResult
+    func lockAutomatically() -> Bool {
+        guard settings.lockProtectionEnabled else { return false }
+        securityEventGeneration += 1
+        activeAuthenticationContext?.invalidate()
+        unlockedAuthenticationContext?.invalidate()
+        unlockedAuthenticationContext = nil
+        guard !isLocked else { return true }
+        guard !isVaultTransitioning else {
+            automaticLockPending = true
+            return false
+        }
+        guard items.isEmpty || unlockedSnapshotKey != nil,
+              let snapshot = prepareLockedSnapshot(availableKeyOnly: true) else {
+            reportLockFailure("Automatic locking could not protect the session. Lock CoPaRe manually to retry.")
+            return false
+        }
+        guard checkpointPendingSnippetChanges() else { return false }
+        persistTask?.cancel()
+        persistTask = nil
+        _ = nextVaultOperationGeneration()
+        lockedSnapshotEnvelope = snapshot.envelope
+        items = []
+        searchText = ""
+        unlockedSnapshotKey = nil
+        unlockedAuthenticationContext?.invalidate()
+        unlockedAuthenticationContext = nil
+        rotateSessionKey()
+        isLocked = true
+        syncCaptureServiceMonitoringState()
+        return true
     }
 
     func dismissLockFailure() {
@@ -405,6 +494,7 @@ final class ClipboardManager: ObservableObject {
         else {
             return false
         }
+        guard checkpointPendingSnippetChanges() else { return false }
 
         lockFailureMessage = nil
         isVaultTransitioning = true
@@ -438,7 +528,7 @@ final class ClipboardManager: ObservableObject {
         if settings.persistHistory {
             let hasStoredSnippets = await snippetStore.hasSavedSnippets()
             if hasStoredSnippets {
-                guard let storedRecords = await snippetStore.loadSnippetRecords() else {
+                guard let storedRecords = await snippetStore.loadSnippetRecords(authenticationContext: unlockedAuthenticationContext) else {
                     recordsToPersist.removeAll(keepingCapacity: false)
                     reportLockFailure("Saved snippets could not be opened. CoPaRe stayed unlocked.")
                     return false
@@ -467,7 +557,8 @@ final class ClipboardManager: ObservableObject {
             let saved = await snippetStore.saveSnippets(
                 recordsToPersist,
                 requireUserPresence: true,
-                generation: saveGeneration
+                generation: saveGeneration,
+                authenticationContext: unlockedAuthenticationContext
             )
             guard saved else {
                 recordsToPersist.removeAll(keepingCapacity: false)
@@ -487,48 +578,56 @@ final class ClipboardManager: ObservableObject {
 
             hasSavedSnippetsAvailable = !recordsToPersist.isEmpty
             savedSnippetsLoaded = !keepSavedSnippetsUnloaded
+            clearSnippetCheckpointAfterPersistence()
         }
 
         // Do not retain plaintext persistence records across the lock commit.
         recordsToPersist.removeAll(keepingCapacity: false)
         lockedSnapshotEnvelope = preparedSnapshot.envelope
         items = []
-        EncryptedClipboardPayload.rotateSessionProtectionKey()
+        searchText = ""
+        unlockedSnapshotKey = nil
+        unlockedAuthenticationContext?.invalidate()
+        unlockedAuthenticationContext = nil
+        rotateSessionKey()
         isLocked = true
         syncCaptureServiceMonitoringState()
         return true
     }
 
     func unlock() async {
-        guard settings.lockProtectionEnabled, isLocked, !isVaultTransitioning else {
+        guard settings.lockProtectionEnabled, isLocked, !isVaultTransitioning, !isUnlocking else {
             return
         }
 
         let context = LAContext()
-        var authError: NSError?
-        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &authError) else {
-            return
+        activeAuthenticationContext = context
+        isUnlocking = true
+        let securityGeneration = securityEventGeneration
+        defer {
+            isUnlocking = false
+            activeAuthenticationContext = nil
+            if isLocked { context.invalidate() }
         }
-
         do {
-            let success = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Bool, Error>) in
-                context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Unlock CoPaRe to view clipboard history") { result, error in
-                    if let error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume(returning: result)
-                    }
-                }
-            }
+            let success = try await authenticateForUnlock(context)
 
-            if success {
-                guard await restoreAfterUnlock(using: context) else {
+            if success, !Task.isCancelled, securityGeneration == securityEventGeneration,
+               !isVaultTransitioning, settings.lockProtectionEnabled,
+               !startsAutomatically || !settings.lockOnSystemEvents || NSApp.isActive {
+                guard restoreAfterUnlock(using: context) else {
                     return
                 }
 
+                unlockedAuthenticationContext = context
+                context.interactionNotAllowed = true
                 isLocked = false
+                autoLockService?.recordActivity()
                 syncCaptureServiceMonitoringState()
                 mutateSecurityCounters { $0.unlockEvents += 1 }
+                if items.contains(where: \.isSnippet) || !pendingSnippetDeletionIDs.isEmpty {
+                    scheduleSnippetPersist(immediately: true)
+                }
             }
         } catch {
             return
@@ -615,12 +714,18 @@ final class ClipboardManager: ObservableObject {
         }
 
         isVaultTransitioning = true
+        securityEventGeneration += 1
+        activeAuthenticationContext?.invalidate()
+        unlockedAuthenticationContext?.invalidate()
+        unlockedAuthenticationContext = nil
+        unlockedSnapshotKey = nil
+        isLocked = settings.lockProtectionEnabled
         items = []
         persistTask?.cancel()
         persistTask = nil
         let generation = nextVaultOperationGeneration()
         lockedSnapshotEnvelope = nil
-        EncryptedClipboardPayload.rotateSessionProtectionKey()
+        rotateSessionKey()
         captureService.resetPasteboardBaseline()
         mutateSecurityCounters { $0.secureWipes += 1 }
         secureWipeMessage = nil
@@ -639,7 +744,16 @@ final class ClipboardManager: ObservableObject {
                 self.syncCaptureServiceMonitoringState()
             }
 
-            let wipeSucceeded = await snippetStore.clearSnippetsFile(generation: generation)
+            var checkpointCleared = true
+            do {
+                try checkpointStore.clear()
+            } catch {
+                checkpointCleared = false
+            }
+            // Attempt crypto-shredding even if removing the ciphertext failed.
+            do { try lockSnapshotKeyDeleter() } catch { checkpointCleared = false }
+            let vaultCleared = await snippetStore.clearSnippetsFile(generation: generation)
+            let wipeSucceeded = checkpointCleared && vaultCleared
             guard generation == vaultOperationGeneration else {
                 return
             }
@@ -654,7 +768,7 @@ final class ClipboardManager: ObservableObject {
                 guard generation == vaultOperationGeneration else {
                     return
                 }
-                hasSavedSnippetsAvailable = stillHasSavedSnippets
+                hasSavedSnippetsAvailable = stillHasSavedSnippets || checkpointStore.exists
                 savedSnippetsLoaded = !stillHasSavedSnippets
                 secureWipeMessage = "Secure wipe could not remove all saved snippet data or vault keys (authentication may have been canceled). Run wipe again and approve the macOS prompt."
                 secureWipeFailed = true
@@ -662,34 +776,99 @@ final class ClipboardManager: ObservableObject {
         }
     }
 
-    func addSnippet(title: String, body: String, tags: [String] = []) {
+    @discardableResult
+    func addSnippet(title: String, body: String, tags: [String] = []) -> UUID? {
         guard !isLocked, !isVaultTransitioning else {
-            return
+            return nil
         }
 
         let now = Date()
         guard let item = makeSnippet(title: title, body: body, tags: tags, createdAt: now, updatedAt: now) else {
-            return
+            return nil
         }
 
         items.insert(item, at: 0)
         sortAndTrim()
         scheduleSnippetPersist(immediately: true)
+        return item.id
     }
 
-    func exportSnippets(to url: URL) -> Bool {
-        guard !isLocked, !isVaultTransitioning else {
-            return false
-        }
+    @discardableResult
+    func updateSnippet(itemID: UUID, title: String, body: String, tags: [String]) -> Bool {
+        guard let original = item(with: itemID), original.isSnippet,
+              let index = items.firstIndex(where: { $0.id == itemID }),
+              var replacement = makeSnippet(id: itemID, title: title, body: body, tags: tags,
+                                            createdAt: original.createdAt, updatedAt: Date()) else { return false }
+        replacement.pinnedAt = original.pinnedAt
+        items[index] = replacement
+        sortAndTrim()
+        scheduleSnippetPersist(immediately: true)
+        return true
+    }
 
-        let exportItems = items
+    func exportSnippets(to url: URL) throws {
+        // No suspension between plaintext access and the atomic commit.
+        try SnippetTransfer.write(makeSnippetTransferDocument(), to: url)
+    }
+
+    func exportEncryptedSnippets(to url: URL, password: String) async throws {
+        try validateTransferAvailability()
+        let generation = vaultOperationGeneration
+        let revision = contentRevision
+        // Derive only the password key in the worker. Snippets stay encrypted
+        // throughout this suspension, including if lock/wipe occurs meanwhile.
+        let worker = Task.detached(priority: .userInitiated) {
+            try EncryptedSnippetBackup.prepareEncryption(password: password)
+        }
+        let context = try await withTaskCancellationHandler {
+            try await worker.value
+        } onCancel: { worker.cancel() }
+        try validateTransferState(generation: generation, revision: revision)
+        let data = try EncryptedSnippetBackup.encrypt(document: makeSnippetTransferDocument(), using: context)
+        try EncryptedSnippetBackup.write(data: data, to: url)
+    }
+
+    @discardableResult
+    func importEncryptedSnippets(from url: URL, password: String) async throws -> Int {
+        try validateTransferAvailability()
+        let generation = vaultOperationGeneration
+        let revision = contentRevision
+        let worker = Task.detached(priority: .userInitiated) {
+            let data = try EncryptedSnippetBackup.read(from: url)
+            return try EncryptedSnippetBackup.prepareDecryption(data: data, password: password)
+        }
+        let context = try await withTaskCancellationHandler {
+            try await worker.value
+        } onCancel: { worker.cancel() }
+        try validateTransferState(generation: generation, revision: revision)
+        return importSnippetDocument(try EncryptedSnippetBackup.decrypt(using: context))
+    }
+
+    private func validateTransferAvailability() throws {
+        try Task.checkCancellation()
+        guard !isLocked, !isVaultTransitioning else {
+            throw SnippetTransferError.unavailable
+        }
+    }
+
+    private func validateTransferState(generation: Int, revision: Int) throws {
+        try validateTransferAvailability()
+        guard generation == vaultOperationGeneration, revision == contentRevision else {
+            throw SnippetTransferError.stateChanged
+        }
+    }
+
+    private func makeSnippetTransferDocument() throws -> SnippetTransferDocument {
+        try validateTransferAvailability()
+
+        let exportItems = try items
             .filter(\.isSnippet)
-            .compactMap { item -> SnippetExportItem? in
+            .map { item -> SnippetTransferItem in
                 guard let plainText = item.decryptedPayload()?.plainText else {
-                    return nil
+                    throw SnippetTransferError.unreadableSnippet
                 }
 
-                return SnippetExportItem(
+                return SnippetTransferItem(
                     title: item.preview,
                     body: plainText,
                     tags: item.tags,
@@ -699,78 +878,74 @@ final class ClipboardManager: ObservableObject {
                 )
             }
 
-        let document = SnippetExportDocument(
+        guard !exportItems.isEmpty else {
+            throw SnippetTransferError.emptyExport
+        }
+
+        return SnippetTransferDocument(
             version: 1,
             exportedAt: Date(),
             snippets: exportItems
         )
 
-        do {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            encoder.dateEncodingStrategy = .iso8601
-            let data = try encoder.encode(document)
-            try data.write(to: url, options: .atomic)
-            return true
-        } catch {
-            return false
-        }
     }
 
     @discardableResult
-    func importSnippets(from url: URL) -> Int {
-        guard !isLocked, !isVaultTransitioning else {
+    func importSnippets(from url: URL) async throws -> Int {
+        try validateTransferAvailability()
+        let generation = vaultOperationGeneration
+        let revision = contentRevision
+        let worker = Task.detached(priority: .userInitiated) {
+            try SnippetTransfer.readData(from: url, maximumBytes: SnippetTransfer.maximumFileBytes)
+        }
+        let data = try await withTaskCancellationHandler {
+            try await worker.value
+        } onCancel: { worker.cancel() }
+        try validateTransferState(generation: generation, revision: revision)
+        return importSnippetDocument(try SnippetTransfer.decode(data))
+    }
+
+    private func importSnippetDocument(_ document: SnippetTransferDocument) -> Int {
+        let existingDigests = Set(items.filter(\.isSnippet).map(\.digest))
+        var imported = [ClipboardHistoryItem]()
+        var importedDigests = Set<String>()
+
+        for snippet in document.snippets {
+            guard let item = makeSnippet(
+                title: snippet.title,
+                body: snippet.body,
+                tags: snippet.tags,
+                createdAt: snippet.createdAt,
+                updatedAt: snippet.updatedAt
+            ) else {
+                continue
+            }
+
+            guard !existingDigests.contains(item.digest),
+                  importedDigests.insert(item.digest).inserted
+            else {
+                continue
+            }
+
+            var mutableItem = item
+            if snippet.pinned {
+                mutableItem.pinnedAt = snippet.updatedAt
+            }
+            imported.append(mutableItem)
+        }
+
+        guard !imported.isEmpty else {
             return 0
         }
 
-        do {
-            let data = try Data(contentsOf: url)
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let document = try decoder.decode(SnippetExportDocument.self, from: data)
-
-            let existingDigests = Set(items.filter(\.isSnippet).map(\.digest))
-            var imported = [ClipboardHistoryItem]()
-            var importedDigests = Set<String>()
-
-            for snippet in document.snippets {
-                guard let item = makeSnippet(
-                    title: snippet.title,
-                    body: snippet.body,
-                    tags: snippet.tags,
-                    createdAt: snippet.createdAt,
-                    updatedAt: snippet.updatedAt
-                ) else {
-                    continue
-                }
-
-                guard !existingDigests.contains(item.digest),
-                      importedDigests.insert(item.digest).inserted
-                else {
-                    continue
-                }
-
-                var mutableItem = item
-                if snippet.pinned {
-                    mutableItem.pinnedAt = snippet.updatedAt
-                }
-                imported.append(mutableItem)
-            }
-
-            guard !imported.isEmpty else {
-                return 0
-            }
-
-            items.insert(contentsOf: imported, at: 0)
-            sortAndTrim()
-            scheduleSnippetPersist(immediately: true)
-            return imported.count
-        } catch {
-            return 0
-        }
+        items.insert(contentsOf: imported, at: 0)
+        sortAndTrim()
+        scheduleSnippetPersist(immediately: true)
+        return imported.count
     }
 
     private func makeSnippet(
+        id: UUID = UUID(),
         title: String,
         body: String,
         tags: [String],
@@ -814,6 +989,7 @@ final class ClipboardManager: ObservableObject {
             .condensingWhitespace()
 
         return ClipboardHistoryItem(
+            id: id,
             type: .text,
             createdAt: createdAt,
             updatedAt: updatedAt,
@@ -855,7 +1031,7 @@ final class ClipboardManager: ObservableObject {
         }
 
         let generation = vaultOperationGeneration
-        guard let stored = await snippetStore.loadSnippets() else {
+        guard let stored = await snippetStore.loadSnippets(authenticationContext: unlockedAuthenticationContext) else {
             return
         }
         guard generation == vaultOperationGeneration,
@@ -934,8 +1110,10 @@ final class ClipboardManager: ObservableObject {
         let persistenceChanged = settings.persistHistory != appliedPersistenceEnabled
         appliedPersistenceEnabled = settings.persistHistory
 
-        captureService.applySettings()
-        configureExpirationTimer()
+        if startsAutomatically {
+            captureService.applySettings()
+            configureExpirationTimer()
+        }
 
         if !isVaultTransitioning {
             for index in items.indices where !items[index].isSnippet && !items[index].isPinned {
@@ -1042,7 +1220,7 @@ final class ClipboardManager: ObservableObject {
                     else {
                         return
                     }
-                    self.hasSavedSnippetsAvailable = hasSavedSnippets
+                    self.hasSavedSnippetsAvailable = hasSavedSnippets || self.checkpointStore.exists
                     self.savedSnippetsLoaded = !self.hasSavedSnippetsAvailable
                 }
             }
@@ -1058,7 +1236,7 @@ final class ClipboardManager: ObservableObject {
             else {
                 return
             }
-            hasSavedSnippetsAvailable = hasSavedSnippets
+            hasSavedSnippetsAvailable = hasSavedSnippets || checkpointStore.exists
             savedSnippetsLoaded = !hasSavedSnippetsAvailable
         } else {
             persistTask?.cancel()
@@ -1083,7 +1261,10 @@ final class ClipboardManager: ObservableObject {
     }
 
     private func performDisabledPersistenceCleanup(generation: Int) async {
-        let succeeded = await snippetStore.clearSnippetsFile(generation: generation)
+        var checkpointCleared = true
+        do { try checkpointStore.clear() } catch { checkpointCleared = false }
+        let vaultCleared = await snippetStore.clearSnippetsFile(generation: generation)
+        let succeeded = checkpointCleared && vaultCleared
         guard generation == vaultOperationGeneration, !settings.persistHistory else {
             return
         }
@@ -1104,7 +1285,7 @@ final class ClipboardManager: ObservableObject {
             return
         }
 
-        hasSavedSnippetsAvailable = stillHasSavedSnippets
+        hasSavedSnippetsAvailable = stillHasSavedSnippets || checkpointStore.exists
         savedSnippetsLoaded = !stillHasSavedSnippets
         disabledPersistenceCleanupFailed = true
         reportLockFailure(
@@ -1264,6 +1445,8 @@ final class ClipboardManager: ObservableObject {
             return
         }
 
+        guard checkpointPendingSnippetChanges() else { return }
+
         let generation = nextVaultOperationGeneration()
         let requireUserPresence = settings.lockProtectionEnabled
         persistTask = Task { @MainActor [weak self] in
@@ -1293,7 +1476,7 @@ final class ClipboardManager: ObservableObject {
             var keepSavedSnippetsUnloaded = false
 
             if self.hasSavedSnippetsAvailable, !self.savedSnippetsLoaded {
-                guard let storedRecords = await self.snippetStore.loadSnippetRecords() else {
+                guard let storedRecords = await self.snippetStore.loadSnippetRecords(authenticationContext: self.unlockedAuthenticationContext) else {
                     self.hasSavedSnippetsAvailable = true
                     self.savedSnippetsLoaded = false
                     return
@@ -1319,7 +1502,8 @@ final class ClipboardManager: ObservableObject {
             let saved = await self.snippetStore.saveSnippets(
                 recordsToPersist,
                 requireUserPresence: requireUserPresence,
-                generation: generation
+                generation: generation,
+                authenticationContext: self.unlockedAuthenticationContext
             )
             guard saved else {
                 if generation == self.vaultOperationGeneration,
@@ -1346,6 +1530,39 @@ final class ClipboardManager: ObservableObject {
             self.hasSavedSnippetsAvailable = !recordsToPersist.isEmpty
             self.savedSnippetsLoaded = !keepSavedSnippetsUnloaded
             self.pendingSnippetDeletionIDs.subtract(deletionIDsToPersist)
+            self.clearSnippetCheckpointAfterPersistence()
+        }
+    }
+
+    /// Persist only manual snippet changes before an asynchronous save or lock.
+    /// This journal survives quitting while locked and never contains captures.
+    private func checkpointPendingSnippetChanges() -> Bool {
+        guard settings.persistHistory, settings.lockProtectionEnabled || checkpointStore.exists else { return true }
+        guard let key = unlockedSnapshotKey else {
+            // Enabling protection uses the transactional manual-lock path first.
+            if checkpointStore.exists {
+                reportLockFailure("Unlock CoPaRe to recover pending snippet changes before saving more changes.")
+                return false
+            }
+            return true
+        }
+        guard let records = snippetPersistenceRecords(from: items) else { return false }
+        if records.isEmpty, pendingSnippetDeletionIDs.isEmpty, !checkpointStore.exists { return true }
+        do {
+            try checkpointStore.save(records: records, deletedIDs: pendingSnippetDeletionIDs, using: key)
+            return true
+        } catch {
+            reportLockFailure("Pending snippet changes could not be saved safely. Keep CoPaRe open and retry. \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    @discardableResult
+    private func clearSnippetCheckpointAfterPersistence() -> Bool {
+        do { try checkpointStore.clear(); return true }
+        catch {
+            reportLockFailure("Snippets were saved, but their recovery file could not be removed. \(error.localizedDescription)")
+            return false
         }
     }
 
@@ -1360,6 +1577,7 @@ final class ClipboardManager: ObservableObject {
         else {
             return false
         }
+        guard checkpointPendingSnippetChanges() else { return false }
 
         isVaultTransitioning = true
         persistTask?.cancel()
@@ -1385,7 +1603,7 @@ final class ClipboardManager: ObservableObject {
         var keepSavedSnippetsUnloaded = false
         let hasStoredSnippets = await snippetStore.hasSavedSnippets()
         if hasStoredSnippets {
-            guard let storedRecords = await snippetStore.loadSnippetRecords() else {
+            guard let storedRecords = await snippetStore.loadSnippetRecords(authenticationContext: unlockedAuthenticationContext) else {
                 recordsToPersist.removeAll(keepingCapacity: false)
                 reportLockFailure("Saved snippets could not be opened. Protection remains enabled.")
                 return false
@@ -1415,7 +1633,8 @@ final class ClipboardManager: ObservableObject {
         let saved = await snippetStore.saveSnippets(
             recordsToPersist,
             requireUserPresence: false,
-            generation: saveGeneration
+            generation: saveGeneration,
+            authenticationContext: unlockedAuthenticationContext
         )
         let hasRecords = !recordsToPersist.isEmpty
         recordsToPersist.removeAll(keepingCapacity: false)
@@ -1434,6 +1653,10 @@ final class ClipboardManager: ObservableObject {
 
         hasSavedSnippetsAvailable = hasRecords
         savedSnippetsLoaded = !keepSavedSnippetsUnloaded
+        guard clearSnippetCheckpointAfterPersistence() else { return false }
+        unlockedSnapshotKey = nil
+        unlockedAuthenticationContext?.invalidate()
+        unlockedAuthenticationContext = nil
         return true
     }
 
@@ -1451,7 +1674,8 @@ final class ClipboardManager: ObservableObject {
         let saved = await snippetStore.saveSnippets(
             retainedRecords,
             requireUserPresence: false,
-            generation: saveGeneration
+            generation: saveGeneration,
+            authenticationContext: unlockedAuthenticationContext
         )
         if saved {
             pendingSnippetDeletionIDs.subtract(deletionIDsToPersist)
@@ -1600,7 +1824,7 @@ final class ClipboardManager: ObservableObject {
             && privacyPauseUntil == nil
     }
 
-    private func prepareLockedSnapshot() -> PreparedLockedSnapshot? {
+    private func prepareLockedSnapshot(availableKeyOnly: Bool = false) -> PreparedLockedSnapshot? {
         guard !items.isEmpty else {
             return .empty
         }
@@ -1644,7 +1868,13 @@ final class ClipboardManager: ObservableObject {
 
         let encryptionKey: SymmetricKey
         do {
-            encryptionKey = try lockSnapshotKeyProvider.loadOrCreateKey()
+            if let unlockedSnapshotKey {
+                encryptionKey = unlockedSnapshotKey
+            } else if availableKeyOnly {
+                return nil
+            } else {
+                encryptionKey = try lockSnapshotKeyLoader(nil)
+            }
         } catch {
             logger.error("Unable to load lock snapshot key: \(String(describing: error), privacy: .public)")
             return nil
@@ -1671,28 +1901,50 @@ final class ClipboardManager: ObservableObject {
         )
     }
 
-    private func restoreAfterUnlock(using context: LAContext) async -> Bool {
-        guard let envelope = lockedSnapshotEnvelope else {
-            return true
-        }
-
+    private func restoreAfterUnlock(using context: LAContext) -> Bool {
         let persistentKey: SymmetricKey
 
         do {
-            persistentKey = try lockSnapshotKeyProvider.loadOrCreateKey(authenticationContext: context)
+            persistentKey = try lockSnapshotKeyLoader(context)
         } catch {
             logger.error("Unable to access lock snapshot key after unlock: \(String(describing: error), privacy: .public)")
             return false
         }
 
-        guard let restoredItems = try? openLockedSnapshot(envelope, using: persistentKey) else {
-            logger.error("Unable to decrypt lock snapshot envelope")
+        var restoredItems: [ClipboardHistoryItem]
+        var recoveredDeletionIDs = pendingSnippetDeletionIDs
+        var recoveredCheckpoint = false
+        do {
+            restoredItems = try lockedSnapshotEnvelope.map { try openLockedSnapshot($0, using: persistentKey) } ?? []
+            if settings.persistHistory, let checkpoint = try checkpointStore.load(using: persistentKey) {
+                recoveredDeletionIDs.formUnion(checkpoint.deletedIDs)
+                let recoveredIDs = Set(checkpoint.records.map(\.id))
+                restoredItems.removeAll { recoveredDeletionIDs.contains($0.id) || recoveredIDs.contains($0.id) }
+                for record in checkpoint.records where !recoveredDeletionIDs.contains(record.id) {
+                    guard var item = makeSnippet(id: record.id, title: record.preview, body: record.body,
+                                                 tags: record.tags, createdAt: record.createdAt, updatedAt: record.updatedAt) else {
+                        throw SnippetCheckpointError.invalidCheckpoint
+                    }
+                    item.pinnedAt = record.pinnedAt
+                    restoredItems.append(item)
+                }
+                recoveredCheckpoint = true
+            }
+        } catch {
+            reportLockFailure("The protected session could not be restored. \(error.localizedDescription)")
             return false
         }
 
         items = restoredItems
+        pendingSnippetDeletionIDs = recoveredDeletionIDs
+        if recoveredCheckpoint {
+            hasSavedSnippetsAvailable = true
+            // Merge with the existing vault before committing/removing recovery.
+            savedSnippetsLoaded = false
+        }
         refreshCapturedItemExpiryAndPrune()
         lockedSnapshotEnvelope = nil
+        unlockedSnapshotKey = persistentKey
         return true
     }
 

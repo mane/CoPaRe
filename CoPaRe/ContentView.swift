@@ -9,12 +9,10 @@ struct ContentView: View {
     @State private var selectedPayload: ClipboardItemPayload?
     @State private var selectedPayloadItemID: UUID?
     @State private var selectedPayloadRefreshID = UUID()
-    @State private var isShowingSnippetComposer = false
+    @State private var snippetDraft: SnippetEditorDraft?
     @State private var isShowingSecurityOnboarding = false
-    @State private var snippetTitle = ""
-    @State private var snippetBody = ""
-    @State private var snippetTags = ""
     @State private var qrCodeText: String?
+    @StateObject private var imageTextExtraction = ImageTextExtractionController()
     @FocusState private var searchFieldFocused: Bool
     @AppStorage("onboardingTourVersion") private var onboardingTourVersion = 0
 
@@ -67,8 +65,9 @@ struct ContentView: View {
                 }
 
                 Button("New Snippet") {
-                    isShowingSnippetComposer = true
+                    snippetDraft = SnippetEditorDraft(mode: .create)
                 }
+                .accessibilityIdentifier("newSnippet")
                 .disabled(manager.isLocked || manager.isVaultTransitioning)
 
                 if settings.lockProtectionEnabled {
@@ -134,8 +133,12 @@ struct ContentView: View {
                 .disabled(manager.isLocked || manager.isVaultTransitioning)
             }
         }
-        .sheet(isPresented: $isShowingSnippetComposer) {
-            snippetComposer
+        .sheet(item: $snippetDraft) { draft in
+            SnippetEditorView(
+                draft: draft,
+                persistsSnippets: settings.persistHistory,
+                onSave: saveSnippet
+            )
         }
         .sheet(
             isPresented: Binding(
@@ -192,6 +195,14 @@ struct ContentView: View {
         .onChange(of: selectedItemID) { _, _ in
             clearSelectedPayload()
         }
+        .onChange(of: selectedItem?.encryptedPayload) { _, _ in
+            clearSelectedPayload()
+        }
+        .onChange(of: manager.items.map(\.id)) { _, ids in
+            if let sourceID = snippetDraft?.mode.sourceItemID, !ids.contains(sourceID) {
+                resetSnippetComposer()
+            }
+        }
         .onChange(of: manager.isLocked) { _, isLocked in
             if isLocked {
                 clearSelectedPayload()
@@ -242,7 +253,7 @@ struct ContentView: View {
                 return
             }
 
-            selectedPayload = nil
+            clearSelectedPayload()
         }
         .task(id: qrCodeText) {
             guard qrCodeText != nil else {
@@ -275,6 +286,7 @@ struct ContentView: View {
                     TextField("Search text, URLs, files, snippets", text: $manager.searchText)
                         .textFieldStyle(.plain)
                         .focused($searchFieldFocused)
+                        .accessibilityIdentifier("historySearch")
 
                     if !manager.searchText.isEmpty {
                         Button {
@@ -365,6 +377,9 @@ struct ContentView: View {
                                 onOpenURL: item.type == .url ? { manager.openURL(item) } : nil,
                                 onSearchWeb: supportsPlainTextCopy(for: item) ? { manager.searchWeb(for: item) } : nil,
                                 onShowQRCode: supportsPlainTextCopy(for: item) ? { qrCodeText = manager.qrCodeText(for: item) } : nil,
+                                onEditSnippet: item.isSnippet ? { openSnippetEditor(for: item, mode: .edit(item.id)) } : nil,
+                                onDuplicateSnippet: item.isSnippet ? { openSnippetEditor(for: item, mode: .duplicate(item.id)) } : nil,
+                                onSaveAsSnippet: canPromoteToSnippet(item) ? { openSnippetEditor(for: item, mode: .promote(item.id)) } : nil,
                                 onTogglePin: { manager.togglePin(itemID: item.id) },
                                 onDelete: { manager.remove(itemID: item.id) }
                             )
@@ -520,6 +535,10 @@ struct ContentView: View {
                             .padding(14)
                             .background(Color(nsColor: NSColor.textBackgroundColor), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
+                        if item.type == .image {
+                            imageTextStatus
+                        }
+
                         HStack(spacing: 10) {
                             if item.encryptedPayload != nil && displayedPayload(for: item) == nil {
                                 Button {
@@ -528,6 +547,7 @@ struct ContentView: View {
                                     Label("Reveal Content", systemImage: "eye")
                                 }
                                 .buttonStyle(.bordered)
+                                .accessibilityIdentifier("revealClipboardContent")
                             }
 
                             Button {
@@ -537,7 +557,42 @@ struct ContentView: View {
                             }
                             .buttonStyle(.borderedProminent)
 
+                            if item.type == .image {
+                                Button {
+                                    copyTextFromSelectedImage()
+                                } label: {
+                                    if imageTextExtraction.status == .recognizing {
+                                        HStack(spacing: 6) {
+                                            ProgressView().controlSize(.small)
+                                            Text("Reading Text…")
+                                        }
+                                    } else {
+                                        Label("Copy Text", systemImage: "text.viewfinder")
+                                    }
+                                }
+                                .buttonStyle(.bordered)
+                                .disabled(displayedPayload(for: item)?.imagePNGData == nil
+                                          || imageTextExtraction.status == .recognizing)
+                                .help("Reveal the image, then recognize and copy its text locally on this Mac.")
+                                .accessibilityIdentifier("copyImageText")
+                            }
+
                             Menu {
+                                if item.isSnippet {
+                                    Button("Edit Snippet…") {
+                                        openSnippetEditor(for: item, mode: .edit(item.id))
+                                    }
+                                    Button("Duplicate Snippet…") {
+                                        openSnippetEditor(for: item, mode: .duplicate(item.id))
+                                    }
+                                    Divider()
+                                } else if canPromoteToSnippet(item) {
+                                    Button("Save as Snippet…") {
+                                        openSnippetEditor(for: item, mode: .promote(item.id))
+                                    }
+                                    Divider()
+                                }
+
                                 if supportsPlainTextCopy(for: item) {
                                     Button("Copy as Plain Text") {
                                         manager.copyAsPlainText(item)
@@ -584,6 +639,7 @@ struct ContentView: View {
                                 Label("More", systemImage: "ellipsis.circle")
                             }
                             .buttonStyle(.bordered)
+                            .accessibilityIdentifier("clipboardItemActions")
 
                             Spacer()
                         }
@@ -608,49 +664,6 @@ struct ContentView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var snippetComposer: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("New Snippet")
-                .font(.title3.bold())
-
-            TextField("Snippet title", text: $snippetTitle)
-
-            TextField("Tags", text: $snippetTags)
-
-            Text("Snippet body")
-                .font(.subheadline.weight(.semibold))
-
-            TextEditor(text: $snippetBody)
-                .font(.system(size: 13, weight: .regular, design: .monospaced))
-                .frame(minHeight: 180)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(panelBorderColor, lineWidth: 0.9)
-                )
-
-            HStack {
-                Button("Cancel") {
-                    resetSnippetComposer()
-                }
-
-                Spacer()
-
-                Button("Save Snippet") {
-                    manager.addSnippet(
-                        title: snippetTitle,
-                        body: snippetBody,
-                        tags: ClipboardHistoryItem.parseTags(snippetTags)
-                    )
-                    resetSnippetComposer()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(snippetBody.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-        }
-        .padding(18)
-        .frame(width: 480, height: 370)
     }
 
     private var qrCodeSheet: some View {
@@ -824,6 +837,7 @@ struct ContentView: View {
     }
 
     private func clearSelectedPayload() {
+        imageTextExtraction.cancel()
         selectedPayload = nil
         selectedPayloadItemID = nil
         selectedPayloadRefreshID = UUID()
@@ -836,10 +850,84 @@ struct ContentView: View {
     }
 
     private func resetSnippetComposer() {
-        snippetTitle = ""
-        snippetBody = ""
-        snippetTags = ""
-        isShowingSnippetComposer = false
+        snippetDraft = nil
+    }
+
+    private func canPromoteToSnippet(_ item: ClipboardHistoryItem) -> Bool {
+        !item.isSnippet && (item.type == .text || item.type == .url)
+    }
+
+    private func openSnippetEditor(for item: ClipboardHistoryItem, mode: SnippetEditorDraft.Mode) {
+        guard !manager.isLocked, !manager.isVaultTransitioning,
+              let currentItem = manager.item(with: item.id),
+              let body = currentItem.decryptedPayload()?.plainText
+        else { return }
+
+        let title: String
+        if case .duplicate = mode {
+            title = String(currentItem.preview.prefix(75)) + " copy"
+        } else {
+            title = currentItem.isSnippet ? currentItem.preview : ""
+        }
+        snippetDraft = SnippetEditorDraft(
+            mode: mode,
+            title: title,
+            body: body,
+            tags: currentItem.tags.joined(separator: ", ")
+        )
+    }
+
+    private func saveSnippet(_ draft: SnippetEditorDraft) -> Bool {
+        guard draft.canSave, !manager.isLocked, !manager.isVaultTransitioning else { return false }
+        let tags = ClipboardHistoryItem.parseTags(draft.tags)
+        if case .edit(let itemID) = draft.mode {
+            let saved = manager.updateSnippet(itemID: itemID, title: draft.title, body: draft.body, tags: tags)
+            if saved { clearSelectedPayload() }
+            return saved
+        }
+        if let sourceID = draft.mode.sourceItemID, manager.item(with: sourceID) == nil {
+            return false
+        }
+        return manager.addSnippet(title: draft.title, body: draft.body, tags: tags) != nil
+    }
+
+    private func copyTextFromSelectedImage() {
+        guard !manager.isLocked, !manager.isVaultTransitioning, NSApp.isActive,
+              let item = selectedItem, item.type == .image,
+              let imageData = displayedPayload(for: item)?.imagePNGData
+        else { return }
+
+        imageTextExtraction.extractAndCopy(imageData: imageData) { text in
+            guard !manager.isLocked, !manager.isVaultTransitioning, NSApp.isActive,
+                  selectedItemID == item.id,
+                  selectedPayloadItemID == item.id,
+                  displayedPayload(for: item)?.imagePNGData != nil,
+                  let currentItem = manager.item(with: item.id),
+                  currentItem.encryptedPayload == item.encryptedPayload,
+                  currentItem.digest == item.digest
+            else { return false }
+            return manager.copyRecognizedText(text, from: item.id)
+        }
+    }
+
+    @ViewBuilder
+    private var imageTextStatus: some View {
+        switch imageTextExtraction.status {
+        case .idle, .recognizing:
+            EmptyView()
+        case .copied:
+            Label("Recognized text copied. No text was added to history.", systemImage: "checkmark.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .noText:
+            Label("No readable text was found in this image.", systemImage: "text.viewfinder")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .failed:
+            Label("Text recognition could not finish. Try another image.", systemImage: "exclamationmark.triangle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func supportsPlainTextCopy(for item: ClipboardHistoryItem) -> Bool {

@@ -3,6 +3,48 @@ import OSLog
 import ServiceManagement
 import Combine
 
+enum AutoLockInterval: String, CaseIterable, Identifiable {
+    case never, oneMinute, fiveMinutes, fifteenMinutes
+    var id: String { rawValue }
+    var interval: TimeInterval? {
+        switch self {
+        case .never: nil
+        case .oneMinute: 60
+        case .fiveMinutes: 300
+        case .fifteenMinutes: 900
+        }
+    }
+    var label: String {
+        switch self {
+        case .never: "Never"
+        case .oneMinute: "1 minute"
+        case .fiveMinutes: "5 minutes"
+        case .fifteenMinutes: "15 minutes"
+        }
+    }
+}
+
+enum ClipboardClearInterval: String, CaseIterable, Identifiable {
+    case never, thirtySeconds, oneMinute, twoMinutes
+    var id: String { rawValue }
+    var interval: TimeInterval? {
+        switch self {
+        case .never: nil
+        case .thirtySeconds: 30
+        case .oneMinute: 60
+        case .twoMinutes: 120
+        }
+    }
+    var label: String {
+        switch self {
+        case .never: "Never"
+        case .thirtySeconds: "30 seconds"
+        case .oneMinute: "1 minute"
+        case .twoMinutes: "2 minutes"
+        }
+    }
+}
+
 enum ClipboardItemTTL: String, CaseIterable, Identifiable {
     case never
     case thirtySeconds
@@ -101,11 +143,17 @@ final class SettingsStore: ObservableObject {
         static let appCaptureRulesRawText = "appCaptureRulesRawText"
         static let perAppHistoryLimit = "perAppHistoryLimit"
         static let maskedContentTTL = "maskedContentTTL"
+        static let lockOnSystemEvents = "lockOnSystemEvents"
+        static let autoLockInterval = "autoLockInterval"
+        static let clipboardClearInterval = "clipboardClearInterval"
     }
 
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: "io.copare.app", category: "settings")
     private var isApplyingPreset = false
+    // Keying by source text also covers initialization and normalized observer assignments.
+    private var excludedAppsCache: (text: String, identifiers: Set<String>)?
+    private var captureRulesCache: (text: String, rules: [String: AppCaptureRule])?
 
     private static let defaultExcludedApps = [
         "com.1password.1password",
@@ -235,6 +283,18 @@ final class SettingsStore: ObservableObject {
         }
     }
 
+    @Published var lockOnSystemEvents: Bool {
+        didSet { persist(lockOnSystemEvents, key: Keys.lockOnSystemEvents, oldValue: oldValue) }
+    }
+
+    @Published var autoLockInterval: AutoLockInterval {
+        didSet { persist(autoLockInterval.rawValue, key: Keys.autoLockInterval, oldValue: oldValue.rawValue) }
+    }
+
+    @Published var clipboardClearInterval: ClipboardClearInterval {
+        didSet { persist(clipboardClearInterval.rawValue, key: Keys.clipboardClearInterval, oldValue: oldValue.rawValue) }
+    }
+
     @Published var imageOCRIndexingEnabled: Bool {
         didSet {
             persist(imageOCRIndexingEnabled, key: Keys.imageOCRIndexingEnabled, oldValue: oldValue)
@@ -297,6 +357,9 @@ final class SettingsStore: ObservableObject {
         perAppHistoryLimit = storedPerAppHistoryLimit.clamped(to: 5...500)
         oneTimeCopyEnabled = defaults.object(forKey: Keys.oneTimeCopyEnabled) as? Bool ?? false
         lockProtectionEnabled = defaults.object(forKey: Keys.lockProtectionEnabled) as? Bool ?? false
+        lockOnSystemEvents = defaults.object(forKey: Keys.lockOnSystemEvents) as? Bool ?? true
+        autoLockInterval = AutoLockInterval(rawValue: defaults.string(forKey: Keys.autoLockInterval) ?? "") ?? .fiveMinutes
+        clipboardClearInterval = ClipboardClearInterval(rawValue: defaults.string(forKey: Keys.clipboardClearInterval) ?? "") ?? .never
         imageOCRIndexingEnabled = defaults.object(forKey: Keys.imageOCRIndexingEnabled) as? Bool ?? false
         globalShortcutEnabled = defaults.object(forKey: Keys.globalShortcutEnabled) as? Bool ?? true
         securityPreset = SecurityPreset(rawValue: defaults.string(forKey: Keys.securityPreset) ?? "") ?? .balanced
@@ -376,7 +439,7 @@ final class SettingsStore: ObservableObject {
 
         var seenBundles = Set<String>()
         return normalizedLines.compactMap { line in
-            guard let bundle = line.split(whereSeparator: { $0.isWhitespace }).first.map(String.init),
+            guard let bundle = Self.ruleTokens(in: line).first,
                   seenBundles.insert(bundle).inserted
             else {
                 return nil
@@ -387,27 +450,29 @@ final class SettingsStore: ObservableObject {
     }
 
     var excludedBundleIdentifiers: Set<String> {
-        Set(
+        if let cache = excludedAppsCache, cache.text == excludedAppsRawText {
+            return cache.identifiers
+        }
+
+        let identifiers = Set(
             excludedAppsRawText
                 .components(separatedBy: .newlines)
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
                 .filter { !$0.isEmpty }
         )
+        excludedAppsCache = (excludedAppsRawText, identifiers)
+        return identifiers
     }
 
     var appCaptureRules: [String: AppCaptureRule] {
+        if let cache = captureRulesCache, cache.text == appCaptureRulesRawText {
+            return cache.rules
+        }
+
         var rules: [String: AppCaptureRule] = [:]
 
         for line in appCaptureRulesRawText.components(separatedBy: .newlines) {
-            let normalizedLine = line
-                .replacingOccurrences(of: "=", with: " ")
-                .replacingOccurrences(of: ",", with: " ")
-                .replacingOccurrences(of: ";", with: " ")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-
-            let tokens = normalizedLine
-                .split(whereSeparator: { $0.isWhitespace })
-                .map { $0.lowercased() }
+            let tokens = Self.ruleTokens(in: line)
 
             guard let bundleIdentifier = tokens.first, !bundleIdentifier.isEmpty else {
                 continue
@@ -452,7 +517,13 @@ final class SettingsStore: ObservableObject {
             )
         }
 
+        captureRulesCache = (appCaptureRulesRawText, rules)
         return rules
+    }
+
+    private static func ruleTokens(in line: String) -> [String] {
+        line.split(whereSeparator: { $0.isWhitespace || $0 == "=" || $0 == "," || $0 == ";" })
+            .map { $0.lowercased() }
     }
 
     func appCaptureRule(for bundleIdentifier: String?) -> AppCaptureRule? {
@@ -498,6 +569,9 @@ final class SettingsStore: ObservableObject {
             imageOCRIndexingEnabled = true
             oneTimeCopyEnabled = false
             lockProtectionEnabled = false
+            lockOnSystemEvents = true
+            autoLockInterval = .fiveMinutes
+            clipboardClearInterval = .never
             itemTTL = .never
             maskedContentTTL = .fiveMinutes
             perAppHistoryLimit = 80
@@ -509,6 +583,9 @@ final class SettingsStore: ObservableObject {
             imageOCRIndexingEnabled = false
             oneTimeCopyEnabled = true
             lockProtectionEnabled = true
+            lockOnSystemEvents = true
+            autoLockInterval = .oneMinute
+            clipboardClearInterval = .thirtySeconds
             itemTTL = .fiveMinutes
             maskedContentTTL = .thirtySeconds
             perAppHistoryLimit = 25

@@ -53,8 +53,8 @@ Environment variable equivalents:
   ALLOW_PROVISIONING_UPDATES=1, SKIP_EXPORT=1, UNSIGNED_CHECK=1,
   UPLOAD=1, CLEAN=0
 
-The script builds a temporary App Store project copy with Sparkle removed, APP_STORE
-compilation enabled, App Store entitlements, and Sparkle Info.plist keys stripped.
+The script builds the CoPaRe App Store target with its dedicated Info.plist and
+entitlements. Sparkle is removed from the temporary project's package graph.
 USAGE
 }
 
@@ -157,21 +157,14 @@ patch_project_for_app_store() {
   ' "${pbxproj}"
 }
 
-strip_sparkle_info_keys() {
+require_no_sparkle_info_keys() {
   local plist="$1"
-  local keys=(
-    SUAutomaticallyUpdate
-    SUEnableAutomaticChecks
-    SUEnableInstallerLauncherService
-    SUFeedURL
-    SUPublicEDKey
-    SURequireSignedFeed
-    SUVerifyUpdateBeforeExtraction
-  )
 
-  for key in "${keys[@]}"; do
-    /usr/libexec/PlistBuddy -c "Delete :${key}" "${plist}" >/dev/null 2>&1 || true
-  done
+  plutil -lint "${plist}" >/dev/null
+  if plutil -convert xml1 -o - "${plist}" | grep -Eq '<key>SU[^<]*</key>'; then
+    echo "Error: App Store Info.plist contains Sparkle update keys: ${plist}" >&2
+    exit 1
+  fi
 }
 
 write_export_options() {
@@ -219,10 +212,7 @@ require_no_sparkle() {
     exit 1
   fi
 
-  if /usr/libexec/PlistBuddy -c "Print :SUFeedURL" "${app_path}/Contents/Info.plist" >/dev/null 2>&1; then
-    echo "Error: App Store Info.plist still contains SUFeedURL." >&2
-    exit 1
-  fi
+  require_no_sparkle_info_keys "${app_path}/Contents/Info.plist"
 }
 
 require_app_store_entitlements_plist() {
@@ -329,8 +319,8 @@ rsync -a --delete \
   "${ROOT_DIR}/" "${WORK_DIR}/"
 
 patch_project_for_app_store "${WORK_DIR}/${PROJECT_FILE}/project.pbxproj"
-strip_sparkle_info_keys "${WORK_DIR}/CoPaRe-Info.plist"
-plutil -lint "${WORK_DIR}/CoPaRe-Info.plist" "${WORK_DIR}/CoPaRe/CoPaRe.AppStore.entitlements" "${WORK_DIR}/CoPaRe/PrivacyInfo.xcprivacy" >/dev/null
+require_no_sparkle_info_keys "${WORK_DIR}/CoPaRe-AppStore-Info.plist"
+plutil -lint "${WORK_DIR}/CoPaRe/CoPaRe.AppStore.entitlements" "${WORK_DIR}/CoPaRe/PrivacyInfo.xcprivacy" >/dev/null
 require_app_store_entitlements_plist "${WORK_DIR}/CoPaRe/CoPaRe.AppStore.entitlements" "App Store entitlements file"
 
 RELEASE_VERSION="$(normalize_version "$(current_version)")"

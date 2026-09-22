@@ -12,6 +12,9 @@ struct ClipboardRowView: View {
     let onOpenURL: (() -> Void)?
     let onSearchWeb: (() -> Void)?
     let onShowQRCode: (() -> Void)?
+    let onEditSnippet: (() -> Void)?
+    let onDuplicateSnippet: (() -> Void)?
+    let onSaveAsSnippet: (() -> Void)?
     let onTogglePin: () -> Void
     let onDelete: () -> Void
 
@@ -97,6 +100,18 @@ struct ClipboardRowView: View {
             isHovering = hovering
         }
         .contextMenu {
+            if let onEditSnippet {
+                Button("Edit Snippet…") { onEditSnippet() }
+            }
+            if let onDuplicateSnippet {
+                Button("Duplicate Snippet…") { onDuplicateSnippet() }
+            }
+            if let onSaveAsSnippet {
+                Button("Save as Snippet…") { onSaveAsSnippet() }
+            }
+            if onEditSnippet != nil || onSaveAsSnippet != nil {
+                Divider()
+            }
             Button("Copy") { onCopy() }
             if let onCopyPlainText {
                 Button("Copy as Plain Text") { onCopyPlainText() }

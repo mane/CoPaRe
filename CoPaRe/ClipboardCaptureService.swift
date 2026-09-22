@@ -25,6 +25,8 @@ final class ClipboardCaptureService {
     private let sourceBundleIdentifierProvider: () -> String?
 
     private var timer: Timer?
+    private var clipboardClearTimer: Timer?
+    private var ownedWrite: (changeCount: Int, writtenAt: Date)?
     private var lastChangeCount: Int
     private var digestToIgnoreOnce: String?
     private var pendingImageOCRDigests = Set<String>()
@@ -71,6 +73,12 @@ final class ClipboardCaptureService {
 
     func applySettings() {
         schedulePollingTimer()
+        scheduleClipboardClear()
+    }
+
+    isolated deinit {
+        timer?.invalidate()
+        clipboardClearTimer?.invalidate()
     }
 
     func resetPasteboardBaseline() {
@@ -114,6 +122,7 @@ final class ClipboardCaptureService {
         }
 
         digestToIgnoreOnce = expectedDigestToIgnore
+        if expectedDigestToIgnore != nil { registerOwnedWrite() }
         return expectedDigestToIgnore != nil
     }
 
@@ -128,6 +137,7 @@ final class ClipboardCaptureService {
         }
 
         digestToIgnoreOnce = digest(data: Data(text.utf8))
+        registerOwnedWrite()
         return true
     }
 
@@ -138,7 +148,49 @@ final class ClipboardCaptureService {
         }
 
         digestToIgnoreOnce = digest(data: Data(text.utf8))
+        registerOwnedWrite()
         return true
+    }
+
+    private func registerOwnedWrite() {
+        ownedWrite = (pasteboard.changeCount, Date())
+        scheduleClipboardClear()
+    }
+
+    private func scheduleClipboardClear() {
+        clipboardClearTimer?.invalidate()
+        clipboardClearTimer = nil
+        guard let ownedWrite, let interval = settings.clipboardClearInterval.interval else {
+            self.ownedWrite = nil
+            return
+        }
+        let delay = max(0.01, ownedWrite.writtenAt.addingTimeInterval(interval).timeIntervalSinceNow)
+        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.clearExpiredClipboard() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        clipboardClearTimer = timer
+    }
+
+    /// A newer copy, including identical text from another app, always wins.
+    func clearExpiredClipboard(now: Date = Date()) {
+        guard let ownedWrite else { return }
+        guard let interval = settings.clipboardClearInterval.interval else {
+            self.ownedWrite = nil
+            clipboardClearTimer?.invalidate()
+            clipboardClearTimer = nil
+            return
+        }
+        guard now >= ownedWrite.writtenAt.addingTimeInterval(interval) else {
+            scheduleClipboardClear()
+            return
+        }
+        self.ownedWrite = nil
+        clipboardClearTimer?.invalidate()
+        clipboardClearTimer = nil
+        guard pasteboard.changeCount == ownedWrite.changeCount else { return }
+        pasteboard.clearContents()
+        resetPasteboardBaseline()
     }
 
     private func schedulePollingTimer() {

@@ -20,7 +20,7 @@ final class GlobalHotKeyService: ObservableObject {
 
     func configure(settings: SettingsStore, windowCoordinator: WindowCoordinator) {
         onHotKeyPressed = { [weak windowCoordinator] in
-            windowCoordinator?.openMainWindow(focusSearch: true)
+            windowCoordinator?.toggleQuickPanel()
         }
 
         settingsCancellable = settings.$globalShortcutEnabled

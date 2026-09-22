@@ -4,6 +4,37 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.5.0] - 2026-09-23
+
+### Added
+
+- Added a compact Quick Copy panel on `⌥⌘V`, with metadata search, keyboard selection, Return to copy, Escape to dismiss, and focus restoration to the previous app.
+- Added snippet editing, duplication, and an explicit Save as Snippet editor for captured text and URLs.
+- Added optional automatic locking on CoPaRe focus loss, display/Mac sleep, user switching, and inactivity within CoPaRe when unlock protection is enabled.
+- Added configurable expiry for copies made by CoPaRe on the system clipboard, clearing only if nothing newer has been copied.
+- Added portable password-protected snippet backups using PBKDF2-HMAC-SHA256 and AES-256-GCM, while retaining the separate readable JSON transfer actions.
+- Added on-demand Copy Text for images using local Vision recognition, without storing extracted text in history or a search index.
+
+### Fixed
+
+- Isolated unit and UI tests from the user's clipboard, preferences, saved snippets, and Keychain keys.
+- Protected pending snippet edits and deletions with an encrypted recovery file so automatic locking followed by quitting does not lose them; Secure Wipe removes this file and its key.
+- Reused the authenticated unlock context for protected vault operations, preventing their own authentication UI from triggering focus-loss locking.
+- Reported invalid, unsupported, oversized, and unreadable snippet imports separately from successful imports with no new entries.
+- Preserved the first per-app rule when duplicate bundle identifiers use different separators.
+- Made direct Xcode and Xcode Cloud App Store builds use a dedicated Info.plist and App Store entitlements in every configuration, keeping Sparkle configuration in the GitHub target.
+- Aligned the App Store packaging script with the dedicated configuration and made it reject any Sparkle update keys.
+- Corrected the documented test scheme and minimum macOS/Xcode requirements.
+- Clarified onboarding and user-initiated web actions in the website privacy information.
+
+### Changed
+
+- Cached parsed capture rules and exclusions until their text changes.
+- Moved snippet file reading and backup password derivation off the main actor, bounded JSON transfers to 10 MB and encrypted backups to 14 MB, and rejected transfers whose vault or content state changed while loading.
+- Clarified the distinction between readable JSON transfers and encrypted backups, kept both limited to loaded snippets, added vault loading to Settings, and restricted export file permissions to the current user.
+- Added regression coverage for authenticated vault storage, stale writes, key failures, clipboard pause/deduplication, settings caches, snippet transfers, quick selection/search, automatic locking, clipboard expiry, snippet editing, and image-text extraction.
+- Kept all six new features in the shared App Store/GitHub source using public macOS APIs and existing sandbox entitlements, without Accessibility permission or synthetic paste events.
+
 ## [1.4.2] - 2026-05-30
 
 ### Changed

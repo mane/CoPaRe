@@ -1,9 +1,9 @@
 # CoPaRe
 
 CoPaRe is a source-available, privacy-first clipboard manager for macOS.
-It keeps captured clipboard history session-only, stores only user-authored snippets across restarts when enabled, and prioritizes secure defaults for everyday work.
+It keeps captured clipboard history session-only, stores only explicitly saved text snippets across restarts when enabled, and prioritizes secure defaults for everyday work.
 
-[Website](https://copare.boscolo.io/) | [Support](https://copare.boscolo.io/support/) | [Privacy policy](https://copare.boscolo.io/privacy/) | [Latest GitHub release](https://github.com/mane/CoPaRe/releases/latest) | [Changelog](CHANGELOG.md)
+[Website](https://copare.it/) | [Support](https://copare.it/support/) | [Privacy policy](https://copare.it/privacy/) | [Latest GitHub release](https://github.com/mane/CoPaRe/releases/latest) | [Changelog](CHANGELOG.md)
 
 ## Why CoPaRe
 
@@ -12,11 +12,13 @@ It keeps captured clipboard history session-only, stores only user-authored snip
 - Clear privacy posture: no telemetry, no analytics SDKs, no cloud sync by default
 - Production-ready distribution: signed, notarized manual-install build with Sparkle signed updates, plus a separate Mac App Store build flow
 
-## What's new in 1.4.2
+## What's new in 1.5.0
 
-- Updated the macOS app icon across all required icon sizes.
-- Refreshed App Store listing copy for the new submission.
-- Included the latest README, website, screenshot, and repository hygiene updates.
+- Quick Copy with `⌥⌘V`, metadata search, and keyboard navigation.
+- Create, edit, duplicate, and tag snippets, with portable password-protected backups.
+- Copy text from images using on-device recognition.
+- Optional automatic locking and expiry of copies made by CoPaRe.
+- More reliable snippet recovery and isolated regression coverage.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
@@ -30,7 +32,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
 ![CoPaRe settings](docs/images/screenshot-settings.jpg)
 
-### Menu bar quick panel
+### Menu bar actions
 
 ![CoPaRe menu bar panel](docs/images/screenshot-menubar.jpg)
 
@@ -67,8 +69,8 @@ The GitHub release is the manual-install build and includes Sparkle updates. The
 
 Requirements:
 
-- macOS
-- Xcode 17 or newer
+- macOS 26.2 or newer
+- Xcode 26.3 or newer
 
 Build:
 
@@ -79,27 +81,38 @@ xcodebuild -project CoPaRe.xcodeproj -scheme 'CoPaRe GitHub Release' -destinatio
 Test:
 
 ```bash
-xcodebuild -project CoPaRe.xcodeproj -scheme 'CoPaRe GitHub Release' -destination 'platform=macOS' test
+xcodebuild -project CoPaRe.xcodeproj -scheme CoPaRe -destination 'platform=macOS' test
 ```
+
+The `CoPaRe` scheme includes the unit and UI test targets and builds the App Store variant. The `CoPaRe GitHub Release` scheme builds the Sparkle-enabled app. Both use the same application source.
+
+Hosted unit tests use an inert app host and isolated fixtures with private pasteboards, temporary vault files, and in-memory test keys. UI tests launch the real App Store interface in a separate test environment.
 
 ## Core features
 
+This list describes version 1.5.0. App Store availability follows Apple's review and may differ from the GitHub release.
+
 - Clipboard history for text, URLs, images, files, and folders
 - First-launch guided "How to" onboarding with key actions and security overview
-- Manual snippets with optional encrypted local persistence
-- Global launcher shortcut (`⌥⌘V`) with instant search focus
+- Text snippets with editable titles, bodies and tags, duplication, and optional encrypted local persistence
+- Explicit `Save as Snippet…` for captured text and URLs
+- Compact `Quick Copy…` panel (`⌥⌘V`): search, select with arrow keys, copy with Return, and dismiss with Escape
+- Password-protected snippet backups that can be restored on another Mac, alongside the existing readable JSON transfer format
 - On-demand loading of the saved-snippets vault (`Load Saved Snippets`)
 - Duplicate collapse with capture counters for repeated copies
 - Fast search across visible previews and minimal local file labels
 - Automatic preview masking for likely secret text/token captures
 - Optional OCR scanning of copied images to block likely sensitive text
+- On-demand `Copy Text` from captured images using local Vision recognition; extracted text is not indexed or saved as history
 - Filters for `All`, `Pinned`, `Text`, `Images`, and `Files`
 - Pin/unpin important entries
 - Source-application label for each captured entry
 - Per-app capture exclusions using bundle identifiers
 - Entry time-to-live controls for captured, unpinned history items
 - Optional one-time copy for unpinned history items
+- Optional expiry of copies made by CoPaRe on the system clipboard, preserving anything copied later
 - Optional local lock/unlock gate that removes the active history from the normal in-memory view path, pauses capture while locked, and uses local authentication to restore it
+- Optional automatic locking when leaving CoPaRe, on display/Mac sleep or user switching, and after inactivity within CoPaRe
 - `userPresence` protection for the saved-snippets vault when app lock is enabled
 - One-click re-copy for every entry
 - `Copy as Plain Text` for text, URL, and file entries
@@ -107,7 +120,7 @@ xcodebuild -project CoPaRe.xcodeproj -scheme 'CoPaRe GitHub Release' -destinatio
 - Signed appcast feed plus EdDSA-signed update archives
 - Sparkle installer flow with one-click verified update prompts
 - Manual update check in the macOS app menu (`CoPaRe > Check for Updates…`)
-- Menu bar quick panel for fast access
+- Menu bar access to Quick Copy and the full main window
 - Menu bar actions for copy, pin/unpin, reveal in Finder, and secure delete
 - Session-only clipboard capture with no automatic history-at-rest
 - Secure wipe of in-memory history and saved snippets
@@ -121,11 +134,14 @@ CoPaRe uses practical hardening appropriate for a local clipboard manager:
 - App Sandbox enabled
 - Release entitlement `com.apple.security.get-task-allow = false`
 - Hardened runtime enabled for release distribution builds produced by `scripts/release.sh`
-- Captured clipboard history is never written to disk and is cleared when CoPaRe quits
+- Captured clipboard history remains session-only and is cleared when CoPaRe quits; explicitly saving text or a URL as a snippet creates a separate entry eligible for snippet persistence
 - Runtime payloads are wrapped with an in-memory session key and revealed on demand for re-copy or focused detail view
-- Locking CoPaRe temporarily removes the live history from the normal in-memory path, encrypts a short-lived lock snapshot, and pauses clipboard capture until unlock
-- Optional snippet persistence stores only user-authored snippets in an encrypted vault stored in the app support container with restrictive local file permissions
-- Search avoids indexing full text bodies in RAM; only visible previews and minimal file labels remain searchable, and likely secrets are auto-masked in previews
+- Locking CoPaRe temporarily removes the live history from the normal in-memory path, encrypts a RAM-only lock snapshot, and pauses clipboard capture until unlock
+- The protected snapshot key and authenticated macOS authorization context are retained only during an unlocked session. Locking discards the cached key and invalidates that authorization; protected vault operations reuse it while unlocked without opening another authentication prompt
+- Optional snippet persistence stores only explicitly saved text snippets in an encrypted vault stored in the app support container with restrictive local file permissions
+- With persistence and unlock protection enabled, pending snippet changes and deletion markers also use an encrypted recovery file, so quitting while automatically locked does not discard them. This file never contains captured history and is removed after the normal vault save succeeds
+- Portable backups use password-derived AES-256-GCM encryption; the password is not saved and only encrypted backup bytes are written to disk
+- Search avoids indexing full text bodies in RAM; visible previews, tags and minimal file labels remain searchable, with source-app search also available in Quick Copy; likely secrets are auto-masked in previews
 - Protected pasteboard-type detection for concealed/password-manager clipboard content
 - No analytics or outbound telemetry code in the app source
 
@@ -146,9 +162,12 @@ Security limits, verification commands, and vulnerability reporting details are 
 | Option | Description | Default |
 |---|---|---|
 | Filter potentially sensitive content | Blocks likely secrets and sensitive file paths from being stored | Enabled |
-| Persist saved snippets on disk | Persists only manually created snippets in an encrypted vault; captured clipboard history always stays session-only | Enabled |
+| Persist saved snippets on disk | Persists explicitly saved text snippets in an encrypted vault; captured clipboard history stays session-only | Enabled |
 | One-time copy for unpinned history items | Removes an unpinned captured item after a successful re-copy | Disabled |
 | Require unlock to view history | Locks the visible history behind local authentication and binds saved-snippets vault access to `userPresence` when enabled | Disabled |
+| Lock when leaving CoPaRe or the Mac sleeps | With unlock protection enabled, locks on app focus loss, display/Mac sleep, and user switching | Enabled when protection is enabled |
+| Lock after inactivity in CoPaRe | Measures keyboard, mouse, and scroll interaction within CoPaRe; requires unlock protection | 5 minutes |
+| Clear copied system clipboard after | Clears a copy made by CoPaRe after 30 seconds, 1 minute, or 2 minutes, only if the pasteboard has not changed | Never |
 | Launch at login | Starts CoPaRe automatically at login (macOS 13+) | Disabled |
 | Capture images | Includes copied images in history | Enabled |
 | Capture copied files/folders | Includes file URLs in history | Enabled |
@@ -157,10 +176,19 @@ Security limits, verification commands, and vulnerability reporting details are 
 | Unpinned history limit | Maximum number of non-pinned entries kept | 250 |
 | Per-App Exclusions | Newline-separated bundle identifiers that CoPaRe ignores during capture | Built-in password manager defaults |
 
+The Strict security preset enables unlock protection, sets inactivity locking to 1 minute, and clears CoPaRe copies from the system clipboard after 30 seconds. These settings remain individually editable.
+
 ## Additional behavior
 
-- Snippets are manually created text entries and are not subject to automatic TTL expiration.
-- Saved snippets are not auto-loaded at app launch; they are loaded only when you explicitly choose `Load Saved Snippets`.
+- Snippets are explicitly saved text entries and are not subject to automatic TTL expiration. `Edit Snippet…`, `Duplicate Snippet…`, and `Save as Snippet…` open an editor where the title, body and tags can be reviewed before saving. Saving a captured item as a snippet leaves its original history entry intact.
+- The normal saved-snippets vault is not loaded automatically at startup; choose `Load Saved Snippets` to load it. Pending snippet changes in the encrypted recovery file are restored after authenticated unlock and merged into the existing vault; captured history is never recovered across app launches.
+- Both backup formats contain only loaded snippets. Settings provides `Load Saved Snippets` before export.
+- `Create Encrypted Backup…` requires a password of at least 12 characters. `Restore Encrypted Backup…` uses that password on any Mac and merges snippets, skipping duplicates; CoPaRe cannot recover a lost password. Encrypted files are limited to 14 MB and contain at most 10 MB of snippet data.
+- The separate JSON import/export actions transfer readable snippet titles, bodies and tags, with a 10 MB file limit.
+- Quick Copy keeps its search separate from the main window and never decrypts content for search. A successful copy or Escape returns focus to the previous app; selecting another app dismisses the panel. Unlocking from Quick Copy opens the main window for authentication.
+- Automatic locking uses local app input and documented workspace notifications. With locking on focus loss enabled, switching away after Quick Copy also locks CoPaRe. It does not monitor keyboard input in other applications.
+- System clipboard expiry applies only to content copied by CoPaRe and checks the pasteboard change count before clearing. History TTL, one-time copy, and secure wipe are separate controls; they do not themselves erase the system clipboard.
+- `Copy Text` recognizes an image locally after an explicit action. It copies the recognized text without adding an OCR search index; leaving the item, hiding its contents, locking, or closing the view cancels pending recognition.
 - Re-copied text and URLs are written back to the pasteboard with concealed/auto-generated markers to reduce capture by other well-behaved clipboard tools.
 - Pinned items and snippets are preserved when you use the standard "Clear unpinned history" action.
 - Captured clipboard history is always memory-only and is not restored after relaunch.
@@ -174,7 +202,8 @@ Security limits, verification commands, and vulnerability reporting details are 
 - `CoPaRe/` app source
 - `CoPaReTests/` unit tests
 - `CoPaReUITests/` UI tests
-- `CoPaRe-Info.plist` explicit app Info.plist containing Sparkle configuration
+- `CoPaRe-Info.plist` GitHub app Info.plist containing Sparkle configuration
+- `CoPaRe-AppStore-Info.plist` App Store app Info.plist without external updater configuration
 - `docs/` project documentation and README screenshots
 - `release/` signed `appcast.xml`, release notes, App Store metadata, and App Store screenshots; generated Sparkle archives are ignored
 - `dist/` locally generated DMGs and checksums created by `scripts/release.sh` (not intended to stay versioned in git)
