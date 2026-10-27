@@ -23,7 +23,7 @@ No objectionable content supplied by the developer, gambling, unrestricted embed
 Pricing:
 Free
 
-## macOS App Version 1.5.0
+## macOS App Version 1.5.1
 
 Screenshots:
 - release/app-store/screenshots/en-US/mac/01-private-clipboard-history.png
@@ -70,19 +70,14 @@ Marketing URL:
 https://copare.it/
 
 Version:
-1.5.0
+1.5.1
 
 What's New:
-CoPaRe 1.5.0 makes everyday copying faster and gives you more control over saved content:
+CoPaRe 1.5.1 improves the menu bar experience:
 
-- Quick Copy: press Option-Command-V, search, select with the arrow keys, and press Return to copy and return to your previous app.
-- Edit and duplicate snippets, or save captured text and URLs as reusable snippets.
-- Automatically lock when leaving CoPaRe, on display or Mac sleep, on user switching, or after inactivity in the app.
-- Expire copies made by CoPaRe from the system clipboard while preserving anything copied afterward.
-- Create password-protected snippet backups and restore them on another Mac.
-- Copy text from images with on-device recognition.
-- Recover pending snippet edits after locking and quitting, without saving captured clipboard history.
-- More reliable imports, clearer transfer errors, and faster capture-rule handling.
+- Keeps the clipboard menu at a consistent width for empty, short, and long history items.
+- Shows long previews and source-app names on one line with an ellipsis, while preserving the full content when copied.
+- Keeps CoPaRe available from the menu bar after closing its main window.
 
 Copyright:
 © 2026 EDDY BOSCOLO
@@ -98,20 +93,17 @@ Not applicable
 Review notes:
 CoPaRe is a sandboxed, local macOS menu bar clipboard utility. No account, subscription, server, Accessibility permission, or external updater is required. Updates for this build are delivered through the Mac App Store.
 
-Captured clipboard history exists only for the current app session. Only text explicitly saved as snippets is eligible for encrypted persistence. A protected recovery file contains pending snippet records/deletion markers, never captured history. Saved snippets are loaded explicitly after startup; authenticated unlock also recovers pending changes.
+Version 1.5.1 is a menu bar layout and lifecycle fix. The app now owns its native status item using public AppKit NSStatusItem and SwiftUI NSHostingMenu APIs. The menu has a consistent width, and long history previews and source-app names are shortened only for display. Copied content remains unchanged. Closing the main window leaves the menu bar utility running.
 
-Quick Copy uses the existing public Carbon global hotkey, an AppKit panel, and NSPasteboard. It copies content and restores the prior app's focus; it does not inject paste events or monitor other apps' keyboard input. Inactivity locking measures interaction within CoPaRe. Focus-loss, display/Mac sleep, and user-switch locking use documented AppKit/workspace events.
-
-Image text recognition uses Vision locally after an explicit Copy Text action. Portable backups use only macOS CommonCrypto, CryptoKit, and Security frameworks. Native open/save panels use the existing user-selected file entitlement. Backups and readable JSON exports include only loaded snippets. The optional Search Web action sends selected text to a search engine through the default browser only when explicitly requested.
+Clipboard retention, snippet encryption, permissions, data collection, pricing, and the rest of the functionality are unchanged from 1.5.0. Captured history stays in the current session; only explicitly saved snippets are eligible for encrypted persistence. The App Store build remains sandboxed, with no external updater.
 
 Suggested review steps:
-1. Launch CoPaRe, complete or skip onboarding, and copy a short non-sensitive text sample in another app.
-2. Press Option-Command-V, type to search, use the arrow keys, and press Return. Paste in your original app to verify the copy.
-3. Open the main window from the menu bar. Select captured text, choose Save as Snippet, and review its title, body, and tags. Edit and duplicate the snippet.
-4. In Settings, create an encrypted backup with a test password. Restore it with the same password. Duplicate snippets are not added again. Load Saved Snippets first if testing a vault saved in a previous session.
-5. Copy an image containing text, select it in CoPaRe, reveal its content if needed, and choose Copy Text. Paste to verify recognition.
-6. In Settings, enable unlock protection and automatic locking. Leave CoPaRe and reopen it; authenticate with the Mac's local authentication mechanism to unlock. Disable focus-loss locking while inspecting the main window alongside another app if desired.
-7. Configure clipboard expiry, copy an item from CoPaRe, and verify expiry. Copy something newer in another app before the deadline to verify it is preserved.
+1. Launch CoPaRe and complete or skip onboarding if shown.
+2. Open the CoPaRe menu bar icon with an empty or short history and note the menu width.
+3. Copy a long, non-sensitive, multiline text sample in another app. Open the menu again: it retains the same width, and the preview stays on one line with an ellipsis as needed.
+4. Select the item from the menu and paste it in the original app. Confirm the full text, including its original line breaks, is preserved.
+5. Open and then close the main CoPaRe window. Confirm the menu bar icon still works and can reopen the main window.
+6. Press Option-Command-V to verify Quick Copy remains available. If unlock protection is enabled, authenticate locally when prompted.
 
 Contact first name:
 Eddy
@@ -174,10 +166,10 @@ Bundle ID:
 io.copare.app
 
 Version:
-1.5.0
+1.5.1
 
 Build:
-21
+22
 
 Local package:
-build/app-store/export/CoPaRe.pkg
+build/app-store/export-local-v1.5.1/CoPaRe.pkg
