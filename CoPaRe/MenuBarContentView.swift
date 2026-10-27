@@ -159,14 +159,36 @@ struct MenuBarContentView: View {
                     .frame(width: 18, height: 18)
             }
 
-            Text(item.preview)
+            Text(compactMenuText(item.preview, maximumWidth: 240))
                 .lineLimit(1)
+                .truncationMode(.tail)
 
             if let sourceAppName = manager.sourceApplicationName(for: item), !item.isSnippet {
-                Text("· \(sourceAppName)")
+                Text(compactMenuText("· \(sourceAppName)", maximumWidth: 80))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                    .truncationMode(.tail)
             }
         }
+    }
+
+    private func compactMenuText(_ text: String, maximumWidth: CGFloat) -> String {
+        // Native menus size themselves from their titles, ignoring SwiftUI's
+        // line/frame limits. Shorten only the displayed, already-masked preview.
+        let normalized = text.condensingWhitespace()
+        let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.menuFont(ofSize: 0)]
+        guard (normalized as NSString).size(withAttributes: attributes).width > maximumWidth else {
+            return normalized
+        }
+
+        var prefix = ""
+        for character in normalized {
+            let candidate = prefix + String(character)
+            guard ((candidate + "…") as NSString).size(withAttributes: attributes).width <= maximumWidth else {
+                break
+            }
+            prefix = candidate
+        }
+        return prefix + "…"
     }
 }

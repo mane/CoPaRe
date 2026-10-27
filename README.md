@@ -12,13 +12,11 @@ It keeps captured clipboard history session-only, stores only explicitly saved t
 - Clear privacy posture: no telemetry, no analytics SDKs, no cloud sync by default
 - Production-ready distribution: signed, notarized manual-install build with Sparkle signed updates, plus a separate Mac App Store build flow
 
-## What's new in 1.5.0
+## What's new in 1.5.1
 
-- Quick Copy with `⌥⌘V`, metadata search, and keyboard navigation.
-- Create, edit, duplicate, and tag snippets, with portable password-protected backups.
-- Copy text from images using on-device recognition.
-- Optional automatic locking and expiry of copies made by CoPaRe.
-- More reliable snippet recovery and isolated regression coverage.
+- The menu bar history keeps a fixed width, even with long text or an empty history.
+- Previews and source-app names stay on one line, with a trailing ellipsis when needed.
+- Copy still returns the complete original content, including its line breaks.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
 
@@ -90,7 +88,7 @@ Hosted unit tests use an inert app host and isolated fixtures with private paste
 
 ## Core features
 
-This list describes version 1.5.0. App Store availability follows Apple's review and may differ from the GitHub release.
+This list describes version 1.5.1. App Store availability follows Apple's review and may differ from the GitHub release.
 
 - Clipboard history for text, URLs, images, files, and folders
 - First-launch guided "How to" onboarding with key actions and security overview

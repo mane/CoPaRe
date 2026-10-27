@@ -31,6 +31,27 @@ final class CoPaReUITests: XCTestCase {
     }
 
     @MainActor
+    func testStatusMenuCanReopenTheMainWindow() throws {
+        let app = launchIsolatedApplication()
+        let statusItem = app.descendants(matching: .any)["CoPaReStatusItem"]
+        XCTAssertTrue(statusItem.waitForExistence(timeout: 5))
+        statusItem.click()
+        let menu = statusItem.menus.firstMatch
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        app.typeKey(.escape, modifierFlags: [])
+
+        app.activate()
+        app.typeKey("w", modifierFlags: .command)
+        XCTAssertTrue(app.windows["CoPaRe"].waitForNonExistence(timeout: 5))
+        XCTAssertNotEqual(app.state, .notRunning)
+        XCTAssertTrue(statusItem.waitForExistence(timeout: 5))
+        statusItem.click()
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.menuItems["Open CoPaRe"].click()
+        XCTAssertTrue(app.windows["CoPaRe"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     func testSnippetCanBeCreatedEditedAndRevealed() throws {
         let app = launchIsolatedApplication()
         createSnippet(in: app, title: "Original snippet", body: "Original body", tags: "original")

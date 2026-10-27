@@ -39,11 +39,13 @@ private struct CoPaReUnitTestHost: App {
 #endif
 
 struct CoPaReApp: App {
+    @NSApplicationDelegateAdaptor(CoPaReApplicationDelegate.self) private var appDelegate
     @StateObject private var settings: SettingsStore
     @StateObject private var manager: ClipboardManager
     @StateObject private var updates: AppUpdateChecker
     @StateObject private var hotKeyService: GlobalHotKeyService
     @StateObject private var windowCoordinator: WindowCoordinator
+    @StateObject private var menuBarController: MenuBarController
     private let appDefaults: UserDefaults
     private let cleanupTestEnvironment: (() -> Void)?
 
@@ -114,9 +116,19 @@ struct CoPaReApp: App {
 
         _settings = StateObject(wrappedValue: settingsStore)
         _manager = StateObject(wrappedValue: clipboardManager)
-        _updates = StateObject(wrappedValue: AppUpdateChecker())
+        let updateChecker = AppUpdateChecker()
+        _updates = StateObject(wrappedValue: updateChecker)
         _hotKeyService = StateObject(wrappedValue: hotKeyService)
         _windowCoordinator = StateObject(wrappedValue: windowCoordinator)
+
+        let statusMenu = MenuBarController(content:
+            MenuBarContentView()
+                .defaultAppStorage(appDefaults)
+                .environmentObject(clipboardManager)
+                .environmentObject(updateChecker)
+                .environmentObject(windowCoordinator)
+        )
+        _menuBarController = StateObject(wrappedValue: statusMenu)
     }
 
     var body: some Scene {
@@ -187,14 +199,13 @@ struct CoPaReApp: App {
                 .environmentObject(manager)
                 .environmentObject(updates)
         }
+    }
+}
 
-        MenuBarExtra("CoPaRe", systemImage: "paperclip.circle.fill") {
-            MenuBarContentView()
-                .defaultAppStorage(appDefaults)
-                .environmentObject(manager)
-                .environmentObject(updates)
-                .environmentObject(windowCoordinator)
-        }
-        .menuBarExtraStyle(.menu)
+@MainActor
+private final class CoPaReApplicationDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        // The native status menu remains available after closing the main window.
+        false
     }
 }

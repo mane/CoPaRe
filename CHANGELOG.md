@@ -4,6 +4,12 @@ All notable changes to this project are documented in this file.
 
 The format is inspired by Keep a Changelog and this project follows Semantic Versioning.
 
+## [1.5.1] - 2026-10-27
+
+### Fixed
+
+- Fixed the menu bar history width at 400 points for empty, short, and long content. Previews and source-app names stay on one line with a trailing ellipsis when needed, without changing the content copied to the clipboard.
+
 ## [1.5.0] - 2026-09-23
 
 ### Added
