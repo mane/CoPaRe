@@ -4,15 +4,15 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>CoPaRe</title>
         <item>
-            <title>1.5.0</title>
-            <pubDate>Wed, 23 Sep 2026 00:32:06 +0200</pubDate>
-            <sparkle:version>21</sparkle:version>
-            <sparkle:shortVersionString>1.5.0</sparkle:shortVersionString>
+            <title>1.5.1</title>
+            <pubDate>Tue, 27 Oct 2026 10:24:55 +0100</pubDate>
+            <sparkle:version>22</sparkle:version>
+            <sparkle:shortVersionString>1.5.1</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.2</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/mane/CoPaRe/releases/download/v1.5.0/CoPaRe-v1.5.0.zip" length="6107276" type="application/octet-stream" sparkle:edSignature="NABtd73jG7V/FcpriuOl6uK5chYSgXBKSRaeueznqGSyPT71NFVNP4D2TFrvnwHCMdJAK4blFIFKYDrYStAmCQ=="></enclosure>
+            <enclosure url="https://github.com/mane/CoPaRe/releases/download/v1.5.1/CoPaRe-v1.5.1.zip" length="6121672" type="application/octet-stream" sparkle:edSignature="aQ9+yhzcm4OR9fgLasnkiiaC4Qh7gr4xfeaiejSjq1m3MH1IUNUoSUmV95d3PdgvJ+oj9IP/rdekO1mzdf+UBA=="></enclosure>
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: 3vGVzfPB0sZi0PYP5f7d6tT4fiGGkg2Ubr9Z0d6qoLkQUMJ69WGTwowRWQvko4cN9/GJkoK9eO7LBiYgzhTIAg==
+edSignature: KEmuMjjk2b1ZuK/mRKctHNvzvSjX5CAx6LxqzpthCAAiWqOSCtsoMwcwmcSqelm/RL9yxtju5yNSmbJlJFkuAw==
 length: 1033
 -->
