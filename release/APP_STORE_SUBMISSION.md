@@ -110,5 +110,20 @@ macOS version `1.5.1` was created in App Store Connect and its What's New and Ap
 - GitHub `1.5.1` is published: https://github.com/mane/CoPaRe/releases/tag/v1.5.1
 - App Store archive `1.5.1 (22)` compiled and passed the bundle-shape checks.
 - A local App Store package was exported successfully at `build/app-store/export-local-v1.5.1/CoPaRe.pkg`. Its app uses Apple Distribution signing and the matching App Store provisioning profile; the installer signature was also verified.
-- The direct upload failed with `Failed to Use Accounts`: Xcode requires renewed App Store Connect account access. The Xcode GUI additionally requires installation of its system components before Accounts is available.
-- Build `22` has **not** been uploaded or submitted for App Review. Renew Xcode account access, upload the prepared build, then select it on version `1.5.1` and complete the review submission. Update this section with the verified result.
+- The initial direct upload failed with `Failed to Use Accounts`. Xcode account access was subsequently restored; `xcodebuild -checkFirstLaunchStatus` returned `0`, so no additional Xcode component installation was needed.
+- The existing archive was exported and uploaded successfully without recompilation. The CLI confirmed `Upload succeeded` and `EXPORT SUCCEEDED` on 2026-10-27, and App Store Connect completed processing for `1.5.1 (22)`.
+- Build `1.5.1 (22)` was selected and saved for macOS version `1.5.1`. The saved selection and automatic release settings were verified before submission.
+
+## Current Submission Result
+
+On 2026-10-27 at 12:23 PM Europe/Rome, CoPaRe `1.5.1 (22)` was submitted to App Review. App Store Connect confirmed the following:
+
+- Submission result: `1 Item Submitted`
+- Version and submission status: `Waiting for Review`
+- Selected build: `1.5.1 (22)`
+- Release setting: automatically release after approval, to all users immediately
+- Existing rating: kept
+- Submission ID: `f3b8dd3c-38f4-478c-85c7-f7a91b015528`
+- Review submission: https://appstoreconnect.apple.com/apps/6771382344/distribution/reviewsubmissions/details/f3b8dd3c-38f4-478c-85c7-f7a91b015528
+
+This records successful submission. Public App Store availability of `1.5.1` remains pending Apple's review and approval.
